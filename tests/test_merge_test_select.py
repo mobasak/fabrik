@@ -71,6 +71,87 @@ def test_name_and_stem_select():
     assert mts.import_patterns("library_x.py") == set()
 
 
+def test_stem_key_matches_a_whole_word_only():
+    # W-fbd1d4b9: a stem matched as a substring selected every test naming CLAUDE_AGENT for a
+    # CLAUDE.md change and every `docker compose` test for a compose.yaml one (357 s serial per merge)
+    tests = {
+        "tests/test_env.py": 'os.environ["CLAUDE_AGENT"]',
+        "tests/test_hyphen.py": "compose-v2 plugin",
+        "tests/test_word.py": 'the "CLAUDE" contract',
+        "tests/test_name.py": "ROOT / 'CLAUDE.md'",
+        "tests/test_import.py": "import merge_request\nmerge_request.main()",
+        "tests/test_longer.py": "merge_request_pretest",
+    }
+    assert mts.select(["CLAUDE.md"], tests) == ["tests/test_name.py", "tests/test_word.py"]
+    assert mts.select(["infra/x/compose.yaml"], tests) == []
+    # a word char glued BEFORE the stem is another name too (review B-haiku: the leading boundary)
+    assert mts.select(["CLAUDE.md"], {"tests/test_pre.py": "the MY_CLAUDE contract"}) == []
+    # a `-` glued to a word before it is part of that name; a `--<stem>` flag is not (Fable critique)
+    assert mts.select(["infra/x/compose.yaml"], {"tests/test_dc.py": "docker-compose up"}) == []
+    assert mts.select(["infra/x/compose.yaml"], {"tests/test_flag.py": "run --compose x"}) == [
+        "tests/test_flag.py"
+    ]
+    assert mts.select(["scripts/merge_request.py"], tests) == ["tests/test_import.py"]
+    # a test reaching the code through another selected test's helpers is selected with it, to a
+    # fixed point (Opus critique: test_merge_request_pretest.py imports World from the merge tests)
+    chain = {
+        "tests/test_merge_request_merge.py": 'SCRIPT = SCRIPTS / "merge_request.py"',
+        "tests/test_merge_request_pretest.py": "from test_merge_request_merge import World",
+        "tests/test_third.py": "from tests.test_merge_request_pretest import x",
+        "tests/test_mention.py": "# see test_merge_request_merge for the World",
+    }
+    assert mts.select(["scripts/merge_request.py"], chain) == [
+        "tests/test_merge_request_merge.py",
+        "tests/test_merge_request_pretest.py",
+        "tests/test_third.py",
+    ]
+    # every one-line import spelling of a picked test is followed (review A1/B1: `from tests import
+    # test_quota_dashboard as base` dropped six readers of quota_dashboard.py); a comment is not one
+    spellings = {
+        "tests/test_merge_request_merge.py": 'SCRIPT = SCRIPTS / "merge_request.py"',
+        "tests/test_pkg.py": "from tests import test_merge_request_merge as base",
+        "tests/test_dot.py": "from . import test_merge_request_merge",
+        "tests/test_list.py": "import os, test_merge_request_merge",
+        "tests/test_dotted.py": "import tests.enforcement.test_merge_request_merge",
+        "tests/test_commented.py": "# from test_merge_request_merge import World",
+        "tests/test_trailing.py": "import os  # test_merge_request_merge",
+        "tests/test_longer.py": "from tests import test_merge_request_merge_extra",
+    }
+    assert mts.select(["scripts/merge_request.py"], spellings) == [
+        "tests/test_dot.py",
+        "tests/test_dotted.py",
+        "tests/test_list.py",
+        "tests/test_merge_request_merge.py",
+        "tests/test_pkg.py",
+    ]
+    # a tree grader runs for any change, but its importers do not ride along (+143 s per merge measured)
+    graders = {
+        "tests/test_tree.py": "git ls-files",
+        "tests/test_uses_tree.py": "from test_tree import helper",
+    }
+    assert mts.select(["scripts/merge_request.py"], graders) == ["tests/test_tree.py"]
+    # a stem with a regex metacharacter is matched literally
+    assert mts.select(
+        ["docs/a+b-notes.md"], {"tests/test_m.py": "a+b-notes", "tests/test_n.py": "aab-notes"}
+    ) == ["tests/test_m.py"]
+
+
+def test_import_pattern_comments_do_not_backtrack():
+    # review A2: `#[^\n]*` inside the lazy paren loop cost ~40x per comment line (0.8 s at 4 lines);
+    # 30 comment lines with the name absent must still fail fast
+    import re
+    import time
+
+    text = (
+        "from pkg.sub import (\n"
+        + "".join(f"    a{i},  # a comment of some length {i}\n" for i in range(30))
+        + ")\n"
+    )
+    t0 = time.monotonic()
+    assert not any(re.search(p, text) for p in mts.import_patterns("pkg/sub/zzz.py"))
+    assert time.monotonic() - t0 < 2.0
+
+
 def _imports_state(text: str) -> bool:
     import re
 
@@ -128,6 +209,26 @@ def test_ledgers_are_not_keys():
     ]
     assert mts.select(changed, tests) == []  # a ledger-only merge runs no tree grader either
     assert mts.select(["tests/test_x.py"], {"tests/test_x.py": ""}) == ["tests/test_x.py"]
+
+
+def test_review_receipt_is_keyed_by_its_file_name():
+    # W-1fb11ec8: a receipt rides almost every branch; its directory keys selected ~25 files that never read it
+    receipt = "docs/development/reviews/2026-10-29-w-x-review.md"
+    tests = {
+        "tests/test_named.py": 'ROOT / "docs/development/reviews/2026-10-29-w-x-review.md"',
+        "tests/test_dir.py": 'ROOT / "docs/development/reviews/"',
+        "tests/test_quoted.py": 'ROOT / "docs" / "development" / "reviews"',
+        "tests/test_stem.py": "2026-10-29-w-x-review",
+        "tests/test_tree.py": "git ls-files",
+    }
+    # its file name and the tree graders, never its directory or its stem alone
+    assert mts.select([receipt], tests) == ["tests/test_named.py", "tests/test_tree.py"]
+    # an archived receipt (one level deeper) keeps every key, its directory included
+    archived = "docs/development/reviews/archived/2026-01-01-old-review.md"
+    tests["tests/test_archived.py"] = 'ROOT / "docs/development/reviews/archived/"'
+    assert "tests/test_archived.py" in mts.select([archived], tests)
+    # the green-record skip still treats a receipt as code-bearing: SKIP is unchanged
+    assert not mts.SKIP.fullmatch(receipt)
 
 
 # --- the leg on real repos -----------------------------------------------------------------------
@@ -438,7 +539,7 @@ class _FakeRunner:
     def __init__(self, reds):
         self.reds = reds
 
-    def start(self, files):
+    def start(self, files, until=()):
         return self._Done(), files, None
 
     def finish(self, _proc, _files, _log):
@@ -452,7 +553,7 @@ def test_a_failing_group_leaves_no_other_group_running():
     slow = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
 
     class Runner:
-        def start(self, files):
+        def start(self, files, until=()):
             return (slow if files == ["b"] else _FakeRunner._Done()), files, None
 
         def finish(self, proc, files, _log):
@@ -473,7 +574,7 @@ def test_a_start_that_fails_still_reaps_the_groups_already_started():
     slow = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
 
     class Runner:
-        def start(self, files):
+        def start(self, files, until=()):
             if files == ["b"]:
                 raise OSError("too many open files")
             return slow, files, None
@@ -779,9 +880,11 @@ class _ScriptedRunner:
     def __init__(self, replies):
         self.replies = list(replies)
         self.calls: list[list[str]] = []
+        self.untils: list[list[str]] = []
 
-    def start(self, files):
+    def start(self, files, until=()):
         self.calls.append(list(files))
+        self.untils.append(sorted(until))
         return _FakeRunner._Done(), self.replies.pop(0), None
 
     def finish(self, _proc, reds, _log):
@@ -911,6 +1014,248 @@ def test_an_alone_red_keeps_its_alone_base_verdict_beside_an_ordered_red(tmp_pat
     assert new == [], out
     assert any("pre-existing on the base — tests/test_a.py::test_k " in line for line in out), out
     assert any("pre-existing on the base — tests/test_b.py::test_k2 " in line for line in out), out
+
+
+# ── W-c80361e4: an ordered re-run stops one item past the reds it verifies ─────────────────────
+
+_STATE_IMPORT = "import sys, os\nsys.path.insert(0, os.path.dirname(__file__))\nimport state\n"
+_POLLUTED = {
+    "tests/state.py": "polluted = False\n",
+    "tests/test_a.py": _STATE_IMPORT + "def test_pollute():\n    state.polluted = True\n",
+    "tests/test_b.py": _STATE_IMPORT
+    + "def test_red():\n    assert not state.polluted\n\ndef test_next():\n    pass\n\n"
+    + "def test_later():\n    pass\n",
+    "tests/test_c.py": "import os\nopen(os.environ['CUT_MARK'], 'a').write('c imported\\n')\n\n"
+    + "def test_c():\n    pass\n",
+}
+_ABC = ["tests/test_a.py", "tests/test_b.py", "tests/test_c.py"]
+
+
+def _cut_runner(tmp_path, monkeypatch, files):
+    """A real `_Runner` over ``files`` written under tmp_path, run from there, outer cut unset."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PYTEST_ADDOPTS", raising=False)
+    monkeypatch.delenv("FABRIK_MERGE_TESTS_UNTIL", raising=False)
+    monkeypatch.setenv("CUT_MARK", str(tmp_path / "mark.txt"))
+    for rel, text in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    work = tmp_path / "work"
+    work.mkdir()
+    return mts._Runner(work)
+
+
+def _cut_run(runner, files, until):
+    """One real run cut at ``until`` — `_Runner.run` takes none: only `_parallel` cuts."""
+    return runner.finish(*runner.start(files, until=until))
+
+
+def _ran(runner) -> list[str]:
+    """The node ids the last run executed, in order (its duration lines, one per report)."""
+    out: list[str] = []
+    for line in runner.dur_files[-1].read_text(encoding="utf-8").splitlines():
+        nid = json.loads(line)["id"]
+        if nid not in out:
+            out.append(nid)
+    return out
+
+
+def test_an_ordered_cut_runs_to_the_last_red_and_collects_every_file(tmp_path, monkeypatch):
+    """The cut keeps the shard's argv: test_c is still imported (D-1275's objection to a prefix run),
+    the polluter before the red still runs, and the run stops one item past the red."""
+    runner = _cut_runner(tmp_path, monkeypatch, _POLLUTED)
+    rc, reds, _tail = _cut_run(runner, _ABC, ["tests/test_b.py::test_red"])
+    assert rc == 1 and ("tests/test_b.py::test_red", "call") in reds, reds
+    assert _ran(runner) == [
+        "tests/test_a.py::test_pollute",
+        "tests/test_b.py::test_red",
+        "tests/test_b.py::test_next",
+    ]
+    assert (tmp_path / "mark.txt").read_text() == "c imported\n"
+    # several listed reds: the cut follows the LAST of them, so the first never stops the run short
+    # of a later one (review pass 1, B1: a `min` cut left test_later unrun, read FLAKY)
+    _cut_run(runner, _ABC, ["tests/test_a.py::test_pollute", "tests/test_b.py::test_later"])
+    assert "tests/test_b.py::test_later" in _ran(runner), _ran(runner)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        json.dumps(["tests/test_b.py::nope"]),  # an id the run does not collect
+        json.dumps(["tests/test_b.py"]),  # a file-keyed collection error's id
+        json.dumps(["tests/test_b.py::test_red", "tests/test_b.py::nope"]),
+        "{",
+        "5",
+        "null",
+        json.dumps({"tests/test_b.py::test_red": 1}),
+        json.dumps([1, 2]),
+        "[]",
+        None,  # the file is missing
+    ],
+)
+def test_an_until_the_run_cannot_honour_cuts_nothing(tmp_path, monkeypatch, content):
+    """Every input the cut cannot honour runs the whole group, as before the cut, inside RAN — a
+    plugin error there is INTERNALERROR, exit 3, a leg with no verdict."""
+    _cut_runner(tmp_path, monkeypatch, _POLLUTED)
+    # as inside a leg shard: the child below must not append its fake files to this one
+    leg_dur = tmp_path / "leg-dur.jsonl"
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_DUR", str(leg_dur))
+    work = tmp_path / "work"
+    (work / "_fabrik_merge_tests_rec.py").write_text(mts._PLUGIN, encoding="utf-8")
+    cut = tmp_path / "until.json"
+    if content is not None:
+        cut.write_text(content, encoding="utf-8")
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(work),
+        "FABRIK_MERGE_TESTS_REC": str(tmp_path / "rec.jsonl"),
+        "FABRIK_MERGE_TESTS_UNTIL": str(cut),
+        # inside a leg shard this is the shard's own duration file; the child's fake files must not
+        # append to it (W-aa8c473c review)
+        "FABRIK_MERGE_TESTS_DUR": "",
+    }
+    r = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
+        + ["-p", "_fabrik_merge_tests_rec", *_ABC],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "1 failed, 4 passed" in r.stdout and "deselected" not in r.stdout, r.stdout
+    assert not leg_dur.exists(), leg_dur.read_text(encoding="utf-8")[:500]
+
+
+_REORDERS = {
+    # registered after the `-p` plugin: a plain trylast cut ran BEFORE it (Fable critique)
+    "trylast": "@pytest.hookimpl(trylast=True)\ndef pytest_collection_modifyitems(items):\n"
+    "    items.reverse()\n",
+    # a wrapper reordering after `yield` ran AFTER a wrapper cut (review pass 1, A1)
+    "wrapper": "@pytest.hookimpl(wrapper=True)\ndef pytest_collection_modifyitems(items):\n"
+    "    res = yield\n    items.reverse()\n    return res\n",
+    "tryfirst-wrapper": "@pytest.hookimpl(wrapper=True, tryfirst=True)\n"
+    "def pytest_collection_modifyitems(items):\n    res = yield\n    items.reverse()\n"
+    "    return res\n",
+}
+
+
+@pytest.mark.parametrize("hook", sorted(_REORDERS))
+def test_the_cut_follows_a_conftest_reorder(tmp_path, monkeypatch, hook):
+    """A conftest reorder that runs after the cut would move the polluter past it and deselect it:
+    a false green. The cut acts in pytest_collection_finish, on the order every
+    pytest_collection_modifyitems impl — plain, trylast or wrapper — left."""
+    files = {
+        "tests/state.py": "polluted = False\n",
+        "tests/conftest.py": "import pytest\n\n\n" + _REORDERS[hook],
+        "tests/test_a.py": _STATE_IMPORT + "def test_red():\n    assert not state.polluted\n",
+        "tests/test_m.py": "def test_mid():\n    pass\n",
+        "tests/test_z.py": _STATE_IMPORT + "def test_pollute():\n    state.polluted = True\n",
+        "tests/test_0.py": "def test_zero():\n    pass\n",
+        "tests/test_1.py": "def test_one():\n    pass\n",
+    }
+    runner = _cut_runner(tmp_path, monkeypatch, files)
+    # reversed, the run is z, m, a, 1, 0: the cut keeps one past the red and drops test_0 — so it
+    # is shown cutting on the reordered list, not merely standing down (review pass 1, B2)
+    paths = ["tests/test_0.py", "tests/test_1.py", "tests/test_a.py", "tests/test_m.py"]
+    paths.append("tests/test_z.py")
+    rc, reds, tail = _cut_run(runner, paths, ["tests/test_a.py::test_red"])
+    assert rc == 1 and ("tests/test_a.py::test_red", "call") in reds, tail
+    assert "1 deselected" in tail and "tests/test_0.py::test_zero" not in _ran(runner), tail
+
+
+def test_the_last_listed_red_keeps_its_teardown_line(tmp_path, monkeypatch):
+    """With the listed item last, its teardown would also run every module and session finalizer
+    and report an exception group — another crash line, read NEW or wrongly pre-existing against
+    the base (Opus critique). One item kept past it keeps the whole run's line."""
+    files = {
+        "tests/conftest.py": "import pytest\n\n\n@pytest.fixture(scope='session', autouse=True)\n"
+        "def sess():\n    yield\n    raise RuntimeError('session finalizer failed')\n",
+        "tests/test_b.py": "import pytest\n\n\n@pytest.fixture(scope='module')\ndef mod():\n"
+        "    yield\n    raise RuntimeError('module finalizer failed')\n\n\n"
+        "def test_one(mod):\n    pass\n\n\ndef test_after(mod):\n    pass\n",
+        "tests/test_c.py": "def test_c1():\n    pass\n\n\ndef test_c_last():\n    pass\n",
+    }
+    runner = _cut_runner(tmp_path, monkeypatch, files)
+    paths = ["tests/test_b.py", "tests/test_c.py"]
+    key = ("tests/test_b.py::test_after", "teardown")
+    _rc, whole, _tail = runner.run(paths)
+    rc, cut, tail = _cut_run(runner, paths, [key[0]])
+    assert rc == 1 and "deselected" in tail, tail
+    assert cut[key] == whole[key] == "RuntimeError: module finalizer failed", (cut, whole)
+
+
+def test_the_ordered_runs_are_cut_after_their_own_reds(tmp_path, monkeypatch):
+    """The ordered confirm is cut at its shard's reds not confirmed alone; the ordered base run at
+    the order reds its base group still runs (test_c is gone on the base); the shard run and the
+    alone runs are never cut."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tests").mkdir()
+    for name in ("test_a.py", "test_b.py", "test_c.py"):
+        (tmp_path / "tests" / name).write_text("")
+
+    def checkout(commit):
+        if commit == "B":
+            (tmp_path / "tests" / "test_c.py").unlink(missing_ok=True)
+
+    monkeypatch.setattr(mts, "_checkout", checkout)
+    alone_red = ("tests/test_a.py::test_k", "call")
+    order_red = ("tests/test_b.py::test_o", "call")
+    flaky = ("tests/test_b.py::test_f", "call")
+    gone = ("tests/test_c.py::test_g", "call")
+    runner = _ScriptedRunner(
+        [
+            {alone_red: "A", order_red: "O", flaky: "F", gone: "G"},  # the one shard
+            {alone_red: "A"},  # the serial confirm
+            {order_red: "O", gone: "G"},  # the ordered confirm: two order reds, one flaky
+            {alone_red: "A"},  # the base alone run
+            {order_red: "O"},  # the ordered base run (test_c absent there)
+        ]
+    )
+
+    new, out = mts.differential(_ABC, "M", "B", runner, 1, compare=True)
+
+    assert runner.untils == [
+        [],
+        [],
+        sorted([order_red[0], flaky[0], gone[0]]),
+        [],
+        [order_red[0]],
+    ], runner.untils
+    assert runner.calls[-1] == ["tests/test_a.py", "tests/test_b.py"], runner.calls
+    assert [k for k, _ in new] == [gone], out
+
+
+def test_a_run_without_until_drops_an_inherited_cut(tmp_path, monkeypatch):
+    """A whole run never inherits a parent's cut (a nested leg, a test of this module), and a list
+    larger than an environment value allows still launches: it rides in a file."""
+    files = dict(_POLLUTED)
+    files["tests/test_c.py"] = (
+        "import os\n\n\ndef test_c():\n"
+        "    open(os.environ['CUT_MARK'], 'a').write(repr(os.environ.get("
+        "'FABRIK_MERGE_TESTS_UNTIL')) + '\\n')\n"
+    )
+    runner = _cut_runner(tmp_path, monkeypatch, files)
+    junk = tmp_path / "parent-cut.json"
+    junk.write_text(json.dumps(["tests/test_b.py::test_red"]), encoding="utf-8")
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_UNTIL", str(junk))
+    rc, _reds, _tail = runner.run(_ABC)
+    assert rc == 1 and "tests/test_c.py::test_c" in _ran(runner)
+    assert (tmp_path / "mark.txt").read_text() == "None\n"
+    # every listed id collected, so the cut is honoured, not merely survived (review pass 1, C2)
+    pad = "a-long-parametrized-id-" * 3
+    (tmp_path / "tests" / "test_wide.py").write_text(
+        "import pytest\n\n\n"
+        f"@pytest.mark.parametrize('i', range(2600), ids=lambda i: f'{pad}{{i:05d}}')\n"
+        "def test_wide(i):\n    pass\n",
+        encoding="utf-8",
+    )
+    big = [f"tests/test_wide.py::test_wide[{pad}{i:05d}]" for i in range(2500)]
+    assert len(json.dumps(big)) > 128 * 1024
+    rc, _reds, tail = _cut_run(runner, ["tests/test_wide.py"], big)
+    assert rc == 0 and "2501 passed, 99 deselected" in tail, tail
 
 
 # ── W-c832e59f: shards balanced by recorded per-file duration ──────────────────────────────
@@ -1571,3 +1916,78 @@ def test_a_split_files_duration_is_the_sum_of_its_groups(tmp_path, monkeypatch, 
     measured = next(ln for ln in out.splitlines() if "shards measured" in ln)
     loads = [float(x) for x in measured.split("measured ", 1)[1].split()]
     assert len(loads) == 2 and min(loads) >= 0.35, measured
+
+
+def test_the_after_merge_base_spans_every_merge_landed_since(tmp_path, monkeypatch, capsys):
+    """merge_request's after-merge run (D-1186, W-3237ba45) tests the newest landed merge against the
+    last tip it tested: a red introduced two merges back is new against that base, though HEAD's own
+    first parent already carries it — and no green record is written for a range."""
+    repo = _repo(tmp_path, GREEN_REPO)
+    tested = _git(repo, "rev-parse", "HEAD")
+    _merge(repo, {"tests/test_new.py": "def test_new():\n    assert False, 'from merge one'\n"})
+    _git(repo, "branch", "-qD", "feat")
+    _merge(repo, {"data.txt": "two\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out  # against its own first parent the red is old news
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    for green in (common / "fabrik-merge").glob("merge-tests-green-*"):
+        green.unlink()
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", _git(repo, "rev-parse", "HEAD^1"))
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out  # a green range writes no green record: that record names one merge
+    assert not list((common / "fabrik-merge").glob("merge-tests-green-*"))
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", tested)
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "tests/test_new.py::test_new" in out.splitlines()[-1], out
+    assert (common / "fabrik-merge" / f"merge-tests-{tested}.txt").is_file()
+
+
+def test_the_after_merge_base_bypasses_the_base_alone_path_and_must_be_a_commit_id(
+    tmp_path, monkeypatch, capsys
+):
+    """Under the override a record for HEAD (what routes a normal leg to the base-alone re-run) is
+    ignored, and a base that is not a commit id is a leg failure, never a path (review r1 B-2, B-3)."""
+    repo = _repo(tmp_path, GREEN_REPO)
+    tested = _git(repo, "rev-parse", "HEAD")
+    _merge(repo, {"tests/test_new.py": "def test_new():\n    assert False, 'from the merge'\n"})
+    head = _git(repo, "rev-parse", "HEAD")
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    (common / "fabrik-merge").mkdir(parents=True, exist_ok=True)
+    (common / "fabrik-merge" / f"merge-tests-{head}.txt").write_text("tests/x.py::t\tcall\n")
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", tested)
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "tests/test_new.py::test_new" in out.splitlines()[-1], out
+    for bad in ("../x", tested[:12], "HEAD~1"):
+        monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", bad)
+        rc, out = _run(repo, monkeypatch, capsys)
+        assert rc == 3 and "not a commit id" in out, (bad, out)
+    assert not list(common.glob("**/merge-tests-..*"))
+
+
+def test_the_after_merge_base_ignores_a_green_record_the_merge_leg_would_trust(
+    tmp_path, monkeypatch, capsys
+):
+    """A green record for the branch head, and a delta of ledger paths only, skip a NORMAL merge
+    leg's re-test; under the override the range is tested anyway (review r2 B2-1)."""
+    repo = _repo(tmp_path, GREEN_REPO)
+    tested = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-qb", "feat")
+    _write(repo, {"tests/test_new.py": "def test_new():\n    assert False, 'from feat'\n"})
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "feat")
+    feat = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-qb", "g", tested)  # an earlier green merge of feat, onto an older base
+    _git(repo, "merge", "--no-ff", "-q", "-m", "g", "feat")
+    g = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "master")
+    _write(repo, {".fabrik/work/W-00000001.json": '{"x": 1}\n'})  # a ledger-only base move
+    _git(repo, "commit", "-qam", "store")
+    _git(repo, "merge", "--no-ff", "-q", "-m", "merge", "feat")
+    _green_record(repo, feat).parent.mkdir(parents=True, exist_ok=True)
+    _green_record(repo, feat).write_text(g + "\n")
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "re-test skipped" in out, out  # the normal leg trusts the record
+    _green_record(repo, feat).write_text(g + "\n")
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", tested)
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "tests/test_new.py::test_new" in out.splitlines()[-1], out

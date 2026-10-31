@@ -258,7 +258,13 @@ def test_blocked_clears_the_pinned_line(run_dir: Path) -> None:
 
 
 def _start_nested(run_dir: Path) -> None:
-    """A plan execution at phase 2/5 with a /fabrik-probe nested inside it."""
+    """A plan execution at phase 2/5 with a /fabrik-probe nested inside it.
+
+    Started from `run_dir` (pytest's tmp dir, normally in no git repo), never the hub checkout:
+    from there `step --phase 2` ran the phase-review scan over every tree's
+    `docs/development/reviews/` (~12,500 blob hashes, 6-14 s under load) and these tests broke
+    the `_cr` 30 s timeout on a busy box (W-a9b3bc15). They test the nested-done mechanism, never
+    the scan."""
     _cr(
         run_dir,
         "start",
@@ -268,6 +274,14 @@ def _start_nested(run_dir: Path) -> None:
         "5",
         "--terminal",
         "every phase EXECUTED",
+        cwd=run_dir,
+    )
+    # The cost guarded is the scan of a root holding `docs/development/reviews/` (every hub
+    # checkout, the main one included); a basetemp in a repo without one is not read as that cost,
+    # though the scan would still walk any sibling worktree of it that has one (review C1-C3).
+    root = _rec(run_dir)["repo_root"]
+    assert not (root and (Path(root) / "docs" / "development" / "reviews").is_dir()), (
+        f"the fixture must not measure a reviewed checkout: {root}"
     )
     # These tests exercise the NESTED-DONE mechanism, not the phase-review rule
     # (transdoc 1.1) — so the waiver is used deliberately rather than seeding an
@@ -282,6 +296,7 @@ def _start_nested(run_dir: Path) -> None:
         "Phase B",
         "--review-waived",
         "nested-run fixture; not a phase-review test",
+        cwd=run_dir,
     )
     _cr(
         run_dir,
@@ -292,6 +307,7 @@ def _start_nested(run_dir: Path) -> None:
         "5",
         "--terminal",
         "found:0 no-op round",
+        cwd=run_dir,
     )
 
 

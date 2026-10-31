@@ -3,7 +3,7 @@
   "created": "2026-10-29T02:55:28.856125Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "120dec1f4263eb13d46d43ca30839ff9d7efa1a9",
   "id": "W-43c850b1",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "LOW: CPU-limit hardening follow-up of W-91a4a715, nobody blocked; one check or config each",
-  "status": "open",
+  "status": "done",
   "tags": [
     "deploy"
   ],

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T19:10:46.669020Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-dbccd01b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M673DG04HP4EWQ20SYJ3MZ5F",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "W-8209a305 (tabbed .bat auto-refresh + tmux how-to): two active plan locks cover my paths — authorise?"
+}

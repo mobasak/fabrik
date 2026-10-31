@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:00:30.439824Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-00244f45",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5YPH7HC932XYCZ1D5BG0N35",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Reply to 01M5YHMMQV (infra, W-09957e81 — the fabrik-rotate.path self-heal sentence for docs/workstation/hooks-index.md)."
+}

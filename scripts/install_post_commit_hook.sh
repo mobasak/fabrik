@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_governance_sync_postcommit.py, tests/test_merge_sync.py
+# AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_governance_sync_postcommit.py, tests/test_merge_sync.py, tests/test_workitem_merge_driver.py, tests/test_merge_ledger_driver.py
 #
 # Installs the hub's POST-COMMIT and POST-MERGE hooks as PLAIN git hooks that run
 # scripts/governance_sync_postcommit.sh directly — never pre-commit's post-commit stage. pre-commit
@@ -73,6 +73,10 @@ done
 # git's text merge, so a conflict keeps its markers and never picks a side. `-X ours|theirs` reach no
 # custom driver. merge_request.py resolves item conflicts on its own (D-988) and needs none of this.
 DRIVER='python3 scripts/work.py merge-item %O %A %B || git merge-file --marker-size %L -L ours -L base -L theirs %A %O %B'
+# The ledger merge driver (W-53360407, D-1386): `.gitattributes` maps the five root ledgers to `ledger`,
+# and `merge_request.py merge-ledger` resolves concurrent insertions with the merge owner's own
+# resolver; an edit of a landed line, a duplicate D-id or any failure falls back to git's markers.
+LEDGER_DRIVER='python3 scripts/merge_request.py merge-ledger %O %A %B %P || git merge-file --marker-size %L -L ours -L base -L theirs %A %O %B'
 # Written only when it differs: a same-value `git config` still replaces the shared file under
 # config.lock, and this runs on every shell, racing every sibling's own config write. A write that
 # fails (a sibling holds the lock, or a stale lock) is reported and the run goes on, so the
@@ -81,13 +85,15 @@ rc=0
 set_config() {
   [ "$(git -C "$ROOT" config --get-all "$1" 2>/dev/null)" = "$2" ] && return 0
   git -C "$ROOT" config --replace-all "$1" "$2" ||
-    { echo "install_post_commit_hook: could not set $1 — the work-item merge driver is not registered; the next shell retries" >&2; rc=1; }
+    { echo "install_post_commit_hook: could not set $1 — that merge driver is not registered; the next shell retries" >&2; rc=1; }
 }
 set_config merge.workitem.name "work.py merge-item (key-wise work-item merge)"
 set_config merge.workitem.driver "$DRIVER"
+set_config merge.ledger.name "merge_request.py merge-ledger (ledger insertions)"
+set_config merge.ledger.driver "$LEDGER_DRIVER"
 # git reads .gitattributes from the tree as it was BEFORE the merge, so a branch cut before the file
 # existed would get no driver on the merge that brings it in; <common>/info/attributes applies to
-# every worktree at once. Its merge=workitem lines are a block this installer OWNS, rebuilt from
+# every worktree at once. Its merge=workitem and merge=ledger lines are a block this installer OWNS, rebuilt from
 # .gitattributes (the mapping's one hand-written home) on every run — so a line removed there leaves
 # here too — and replaced atomically only when it changed; every other line is kept.
 info="$common/info/attributes"
@@ -95,7 +101,7 @@ BEGIN_MARK="# BEGIN work-item merge driver — managed by scripts/install_post_c
 END_MARK="# END work-item merge driver"
 want=""
 [ -f "$ROOT/.gitattributes" ] &&
-  want="$(grep -E '^[[:space:]]*[^#[:space:]].*[[:space:]]merge=workitem([[:space:]]|$)' "$ROOT/.gitattributes" || true)"
+  want="$(grep -E '^[[:space:]]*[^#[:space:]].*[[:space:]]merge=(workitem|ledger)([[:space:]]|$)' "$ROOT/.gitattributes" || true)"
 current=""
 [ -f "$info" ] && current="$(cat "$info")"
 # A block's lines are dropped only when its END arrives; an unclosed BEGIN (a hand-trimmed END)

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T08:47:07.902727Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-6f5e5377",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68J5V2VNKTKJ7TZYAHBRX7D",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "kaizen re-bound after rotation: next item? Take W-92389a31 or stay paused (D-1367)."
+}

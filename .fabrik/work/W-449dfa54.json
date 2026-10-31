@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:17:28.187914Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-449dfa54",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "normalise the path before the prefix test in known_agents (and the session-agents glob), with a test for a '..' row",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "claude_tab_router.py known_agents: the /opt/ prefix check reads the RAW registry path before add() normalises it, so a hand-written identity-store row like /opt/x/../../etc is admitted and keyed /etc (found by W-5f4b0972's review pass 3, three seats; pre-existing: the raw key was admitted before the normpath fix too, and no production writer emits '..' since whoami_agent.py _toplevel takes git's common dir)"
+}

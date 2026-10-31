@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T08:12:09.138417Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "8dd8ca642a584a2552366fa88da1dc0d0601a448",
+  "id": "W-0c208792",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the D-row; add the override write + check to the installer; doc; /fabrik-review-scoped; MR",
+  "note": "",
+  "owner": "builder-tmpfix",
+  "priority": 0,
+  "score_reason": "operator: never see this again on a restart; infra-3 owns fabrik_deck.py and install_mesh.sh",
+  "status": "done",
+  "title": "Make the /tmp boot-wipe fix part of the box install (D-row of 2026-10-31): fabrik_deck.py install (or install_mesh.sh) writes /etc/tmpfiles.d/tmp.conf = 'd /tmp 1777 root root 30d' (sudo) and asserts it; docs/workstation/fabrik-deck.md § troubleshooting gets the cause (Ubuntu's D /tmp wipes /tmp at boot; 119 GB of scratch held sysinit 9 min, no user session, no code-server) and the .wslconfig unknown-key cleanup; a test that the installer's override shadows the stock line via systemd-tmpfiles --cat-config"
+}

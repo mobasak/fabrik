@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_selfwatch_check.py | docs/workstation/hooks-index.md | scripts/sysadmin/claude_selfwatch_orient.sh
+# AFTER-EDIT: tests/test_selfwatch_check.py | docs/workstation/hooks-index.md | scripts/sysadmin/claude_selfwatch_orient.sh | docs/reference/tmux-agents.md
 """UserPromptSubmit (USER level — every window, every project) — is this session's self-watch ARMED?
 
 The arm was always an ORDER: `session_orient.py` prints it at SessionStart in the synced repos,
@@ -29,6 +29,7 @@ import errno
 import fcntl
 import json
 import os
+import re
 import shlex
 import stat
 import subprocess
@@ -127,6 +128,117 @@ def _feedback_order(sid: str, cwd: str) -> str:
         "(ONE wake per arm: its wake line names the `/fabrik-command-improve <cmd>` or the mail id "
         "to claim — act on it, then re-arm. Authority: docs/workstation/hooks-index.md.)\n"
     )
+
+
+# W-c814836f — every repo's coordinator watches its builders (D-1396 duty 3): the order to arm the one-wake builder
+# watch, for a window LAUNCHED in a repo's main checkout (D-871: in a multi-window repo the coordinator is the
+# main-checkout agent) whose repo is in coordinator_mode or has a live agents_up builder grid. The launch folder
+# (CLAUDE_PROJECT_DIR), not cwd, because a builder that `cd`s into a main checkout keeps its own launch folder; not
+# `$TMUX_PANE`, because the hub coordinator runs in code-server outside tmux. Gates run cheapest first: a stat walk,
+# the lock probe, the config read, and only then the rotate_session import (0.14 s) and one `tmux list-panes`.
+# Fail direction: any error is one stderr line and no order (a missed arm is re-ordered on the next prompt) — never a
+# lost self-watch order. Cobra (D-253): the cheapest silence is arming the watch and ignoring its wakes; the wake line
+# names the panes and mail, and an unanswered pane still shows as PANE WAITING.
+BUILDER_ARM = f"{HUB_ROOT}/scripts/sysadmin/watch_builders.py"
+# the characters the order carries unquoted inside its double-quoted `command: "…"` (review B-1)
+_ORDER_SAFE_PATH = re.compile(r"[A-Za-z0-9_./+@%=:,-]+")
+_BUILDER_GRID_BUDGET_S = 1.0
+
+
+def _main_checkout(start: str) -> Path | None:
+    """The main checkout `start` is in: walking up, the FIRST `.git` met decides — a directory is a main checkout, a
+    file is a linked worktree (None), and none at all is None."""
+    # resolved: a symlinked launch folder names the real checkout, as the watcher resolves it (review B-2)
+    p = Path(start).resolve()
+    if not p.is_dir():
+        return None  # a removed worktree must not climb to the main checkout's `.git` (review Bh-1)
+    for d in (p, *p.parents):
+        g = d / ".git"
+        if g.is_dir():
+            return d
+        if g.exists():
+            return None
+    return None
+
+
+def _read_config(path: Path) -> dict:
+    """The work config as a dict; {} when it is absent, unreadable, not a regular file or not a JSON object. One
+    non-blocking open decides the type by fstat: a FIFO there must never hang a hook every prompt runs (review Bh-2). It
+    follows a symlink on purpose — a config linked to a regular file is read (review B2-R2) — and a link to a FIFO
+    still opens without blocking and is refused by the regular-file check."""
+    try:
+        fd = os.open(str(path), os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return {}
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return {}
+        data = json.loads(os.read(fd, 1 << 20).decode("utf-8", "replace"))
+    except (OSError, ValueError):
+        return {}
+    finally:
+        os.close(fd)
+    return data if isinstance(data, dict) else {}
+
+
+def _builder_order(sid: str, cwd: str) -> str:
+    """The builder-watch arm order for a coordinator window whose builderwatch lock is free; "" otherwise. Never raises."""
+    try:
+        main = _main_checkout((os.environ.get("CLAUDE_PROJECT_DIR") or "").strip() or cwd)
+        if main is None or _armed(sid, "builderwatch"):
+            return ""
+        cfg = _read_config(main / ".fabrik" / "work" / "config.json")
+        if cfg.get("coordinator_mode") is not True:
+            import importlib.util
+
+            here = Path(__file__).resolve().parent / "rotate_session.py"
+            spec = importlib.util.spec_from_file_location("_selfwatch_rotate_session", here)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"cannot load {here}")
+            rs = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(rs)
+            if not rs.builder_panes(str(main), budget=_BUILDER_GRID_BUDGET_S):
+                return ""
+        # an order the shell would mangle, or one whose watcher dies at once on its lock, would come back on every
+        # prompt for ever — say what is wrong instead (the self-watch's own B5 rule)
+        why = ""
+        if not _ORDER_SAFE_PATH.fullmatch(str(main)):
+            why = f"the repo path `{main!s}` holds characters the order's double-quoted command cannot carry"
+        else:
+            locks = _lock_dir()
+            lock = locks / f"{_safe(sid)}.builderwatch.lock"
+            # a lock folder not created yet is made by the watcher's own mkdir: its nearest existing ancestor must then
+            # be writable, or the watch dies on every arm (review pass 2, D-haiku #1)
+            probe = locks
+            while not probe.exists() and probe != probe.parent:
+                probe = probe.parent
+            if not os.access(probe, os.W_OK):
+                why = f"the lock DIR `{locks}` is not writable"
+            elif lock.is_symlink() or (lock.exists() and not lock.is_file()):
+                why = f"the lock FILE `{lock}` is not a regular file"
+            elif lock.exists() and not os.access(lock, os.W_OK):
+                why = f"the lock FILE `{lock}` is not writable"
+        if why:
+            return (
+                "## ⚠️ BUILDER WATCH CANNOT ARM (coordinator window)\n"
+                f"{why}, so an arm order would never stop this notice. Fix it, then the order returns.\n"
+            )
+        return (
+            "## ⚠️ BUILDER WATCH NOT ARMED (coordinator window, mechanical check)\n"
+            "You are this repo's coordinator (a window launched in its main checkout, builders in its tmux grid), "
+            "and no process holds this session's `builderwatch.lock`, so a builder that finishes, stalls or asks "
+            "waits unseen until you next look. ARM IT NOW — one background Bash task; once the lock is held this "
+            "notice stops:\n"
+            f'`Bash(run_in_background: true, command: "python3 {BUILDER_ARM} {_safe(sid)} {shlex.quote(str(main))}")`\n'
+            "(ONE wake per arm: its line names each builder pane that went idle or ended a turn and each mail for "
+            "you — read them, act, then re-arm. Authority: docs/reference/tmux-agents.md.)\n"
+        )
+    except Exception as exc:  # noqa: BLE001 — fail-open by contract, but never SILENT (B4)
+        print(
+            f"selfwatch_check: builder watch check skipped — {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return ""
 
 
 # W-456aa02a — a window's hooks, settings and permissions load from CLAUDE_PROJECT_DIR, the folder it was LAUNCHED in,
@@ -324,6 +436,11 @@ def main() -> int:
         order = _feedback_order(sid, cwd)
         if order:
             print(order)
+        # the coordinator's builder watch (W-c814836f): its own gates and its own except, so a tmux failure there
+        # never costs this window the self-watch order below
+        builders = _builder_order(sid, cwd)
+        if builders:
+            print(builders)
         # the tree notice shares only the real-sid and not-headless gates above — not the `/opt` prefix or the watch
         # binary (a project window elsewhere has the same defect) — and never raises, so the self-watch order below
         # still prints (W-456aa02a)

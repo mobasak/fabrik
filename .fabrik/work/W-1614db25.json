@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T19:31:46.967007Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1614db25",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "give the memory unbounded loop the CPU loop's read rule: integer or UNREADABLE (failed), GONE when the id left ps -aq; red-first test on the fake-docker harness",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "deploy",
+    "fleet"
+  ],
+  "title": "scripts/vps_apply_limits.sh memory section reads an EMPTY HostConfig.Memory (inspect failed: container removed mid-loop or a daemon hiccup) as bounded — `[ \"$(inspect)\" = \"0\" ] || continue` at the unbounded loop skips it — so --check can go green on a read it never made (pre-existing, found designing W-fc701b31's CPU loop, which fails closed)"
+}

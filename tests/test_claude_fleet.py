@@ -9883,15 +9883,21 @@ def test_no_resume_wake_without_a_real_sleep_gap(tmp_path, monkeypatch, record, 
         ("garbage", False),
         (None, False),  # a dangling link at the stamp path
         ("0\nurgent-90\n", True),
+        ("0\nhibernate\n", False),
     ],
-    ids=["walled", "battery", "torn", "dangling", "urgent"],
+    ids=["walled", "battery", "torn", "dangling", "urgent", "hibernate"],
 )
 def test_a_standing_hold_suppresses_the_resume_wake(tmp_path, monkeypatch, capsys, stamp, wakes):
-    """While the stamp reads walled (a wall, the battery, a torn file, a dangling link) a resume
-    wakes nobody and says so — the hold's own lift wakes them; `urgent-90` (the D-1113 lane, which
-    parks builders but holds no session all-out) does not suppress the wake."""
+    """While the stamp reads walled (a wall, the battery, a torn file, a dangling link, the
+    hibernate tier) a resume wakes nobody and says so — the hold's own lift wakes them;
+    `urgent-90` (the D-1113 lane, which parks builders but holds no session all-out) does not
+    suppress the wake. Under the `hibernate` tier alone the sleep's `resume-wake` row is still
+    written (woken 0, its gap's start named) — the hibernate lift's evidence (W-6e656dac T06)."""
     clock, locks, fd = _resume_box(tmp_path, monkeypatch)
     monkeypatch.setattr(cr, "_battery_leg", lambda *a, **k: None)  # the stamp is the test's
+    monkeypatch.setattr(
+        cr, "_hibernate_lift_leg", lambda *a, **k: None, raising=False
+    )  # nor lifted
     try:
         (cr._rotate_state_dir() / "tick-last-end").write_text(f"{FLEET_NOW - 3600}\n")
         if stamp is None:
@@ -9901,15 +9907,20 @@ def test_a_standing_hold_suppresses_the_resume_wake(tmp_path, monkeypatch, capsy
         capsys.readouterr()
         assert cr._cmd_tick() == 0
         assert (locks / "pane1.holdlifted").exists() is wakes
-        if not wakes:
+        rows = _resume_rows()
+        if stamp == "0\nhibernate\n":
+            assert "under the HIBERNATE hold" in capsys.readouterr().out
+            assert len(rows) == 1 and rows[0]["site"] == "hibernate" and rows[0]["woken"] == 0
+            assert rows[0]["gap_from"] == FLEET_NOW - 3600, rows
+        elif not wakes:
             assert "a hold stands" in capsys.readouterr().out
+            assert not rows, "a quota or battery hold records no resume row"
     finally:
         os.close(fd)
 
 
 def test_a_resume_wakes_once_and_never_overwrites_a_pending_lift(tmp_path, monkeypatch):
-    """The tick after the resume tick wakes nobody; a pending `.holdlifted` stays as it was; a
-    record that cannot be written wakes nobody, so a broken state file can never storm."""
+    """The tick after the resume tick wakes nobody, and a pending `.holdlifted` stays as it was."""
     clock, locks, fd = _resume_box(tmp_path, monkeypatch)
     rec = cr._rotate_state_dir() / "tick-last-end"
     try:
@@ -9922,7 +9933,17 @@ def test_a_resume_wakes_once_and_never_overwrites_a_pending_lift(tmp_path, monke
         clock["now"] += 300
         assert cr._cmd_tick() == 0
         assert not (locks / "pane1.holdlifted").exists(), "one wake per resume"
-        clock["now"] += 3600
+    finally:
+        os.close(fd)
+
+
+def test_an_unwritable_resume_record_wakes_nobody(tmp_path, monkeypatch):
+    """A record that cannot be written wakes nobody after a sleep, and its staging file is
+    removed, so a broken state file can never storm (split from the test above, W-6e656dac)."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    rec = cr._rotate_state_dir() / "tick-last-end"
+    try:
+        rec.write_text(f"{FLEET_NOW - 3600}\n")
         real_replace = os.replace
 
         def no_write(src, dst, *a, **k):
@@ -10499,3 +10520,214 @@ def test_status_says_a_stale_hold_is_not_in_force(tmp_path, monkeypatch, capsys)
     assert "NOT IN FORCE: no tick log" in hold_line(), "a missing log is stale to the hook too"
     pic["hold"] = None
     assert hold_line() == "picture: hold none", "no hold, no clause"
+
+
+# ── W-992979e1 / D-1400: a payload-retired 5-hour window ───────────────────────────────────────
+# Live shape 2026-10-31 (sarp, Ultra plan): the key is present with null and limits[] carries the
+# weekly entries and no session entry. Every other null shape stays fail-closed.
+def _retired_usage(weekly=91.0, limits=None):
+    return {
+        "five_hour": None,
+        "seven_day": {"utilization": weekly, "resets_at": "2027-01-22T00:00:00+00:00"},
+        "limits": (
+            limits
+            if limits is not None
+            else [
+                {"kind": "weekly_all", "group": "weekly", "percent": weekly, "is_active": True},
+                {
+                    "kind": "weekly_scoped",
+                    "percent": 33,
+                    "scope": {"model": {"display_name": "Fable"}},
+                    "resets_at": "2027-01-23T00:00:00+00:00",
+                },
+            ]
+        ),
+    }
+
+
+def _account_status_of(usage, tmp_path, monkeypatch):
+    store = tmp_path / "store"
+    store.mkdir(exist_ok=True)
+    (store / ".credentials.json").write_text("{}")
+    monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
+    monkeypatch.setattr(
+        cr,
+        "_oauth_get",
+        lambda kind, tok, *a, **k: (
+            {"account": {"email": "sarp@ocoron.com"}} if kind == "profile" else usage
+        ),
+    )
+    return cr._account_status(store)
+
+
+def test_five_hour_retired_payload_parses(tmp_path, monkeypatch):
+    out = cr._usage_windows(_retired_usage())
+    assert out is not None, "a retired 5h window must not fail the whole reading closed"
+    assert out["five_hour"] == {"utilization": 0.0, "resets_at_epoch": None, "retired": True}
+    assert out["seven_day"]["utilization"] == 91.0 and "retired" not in out["seven_day"]
+    assert out["model_windows"]["Fable"]["utilization"] == 33.0
+    row = _account_status_of(_retired_usage(), tmp_path, monkeypatch)
+    assert row["valid"] is True, row
+    assert row["five_hour"] == {"utilization": 0.0, "resets_at_epoch": None, "retired": True}
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        # key ABSENT, not null: a truncated payload, not a retirement
+        {k: v for k, v in _retired_usage().items() if k != "five_hour"},
+        # limits empty, missing, or not a list: no positive evidence the array is whole
+        _retired_usage(limits=[]),
+        {k: v for k, v in _retired_usage().items() if k != "limits"},
+        {**_retired_usage(), "limits": {"kind": "weekly_all"}},
+        # no weekly_all entry
+        _retired_usage(limits=[{"kind": "weekly_scoped", "percent": 3}]),
+        # a session limit, by its name or a new one, means the window is still enforced
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": "session"}]),
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": "Session_5h"}]),
+        # a renamed 5h limit or any kind never seen: only the two weekly kinds are evidence
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": "rolling_5h"}]),
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": "five_hour"}]),
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, "session"]),
+        # an unhashable kind must read as not retired, never raise out of the parser
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": ["a"]}]),
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": {"a": 1}}]),
+        # a malformed (non-dict, non-null) window
+        {**_retired_usage(), "five_hour": "retired"},
+    ],
+)
+def test_five_hour_null_shapes_fail_closed(usage, tmp_path, monkeypatch):
+    assert cr._usage_windows(usage) is None
+    row = _account_status_of(usage, tmp_path, monkeypatch)
+    assert row["valid"] is False and row["five_hour"] is None, row
+
+
+def test_five_hour_reported_unchanged(tmp_path, monkeypatch):
+    usage = {
+        "five_hour": {"utilization": 0.0, "resets_at": "2027-01-20T00:00:00+00:00"},
+        "seven_day": {"utilization": 95.0, "resets_at": "2027-01-22T00:00:00+00:00"},
+        "limits": [{"kind": "session", "percent": 0}, {"kind": "weekly_all", "percent": 95}],
+    }
+    out = cr._usage_windows(usage)
+    assert out["five_hour"] == {
+        "utilization": 0.0,
+        "resets_at_epoch": cr._iso_to_epoch("2027-01-20T00:00:00+00:00"),
+    }
+    row = _account_status_of(usage, tmp_path, monkeypatch)
+    assert row["valid"] is True and "retired" not in row["five_hour"]
+
+
+def _retired_row(email, weekly, slug, w_reset=None):
+    r = _row(email, 0.0, weekly, slug=slug, w_reset=w_reset or FLEET_NOW + 86400)
+    r["five_hour"] = {"utilization": 0.0, "resets_at_epoch": None, "retired": True}
+    return r
+
+
+def _serving_picture(rows, active_slug, now):
+    """`_fleet_picture` with every account SERVING — its state otherwise depends on this suite's
+    isolated fleet root (no dirs → not serving), which is not what these graders measure."""
+    pic = cr._fleet_picture(rows, active_slug, now)
+    for a in pic["accounts"]:
+        a["state"] = "active" if a["email"] == pic["active"] else "eligible"
+    return pic
+
+
+def test_posture_and_fleet_five_hour_retired():
+    now = FLEET_NOW
+    act = _retired_row("sarp@ocoron.com", 40.0, "sarp")
+    real = _row("mob@ocoron.com", 0.0, 50.0, slug="mob", s_reset=now + 3600, w_reset=now + 86400)
+    for order in ([act, real], [real, act]):
+        pic = _serving_picture(order, "sarp", now)
+        fw = cr._fleet_readings(order, pic)
+        # a REAL 0.0 outranks a retired 0.0 whatever the account order
+        assert fw["five_hour"]["slug"] == "mob" and not fw["five_hour"].get("retired"), fw
+        got = cr._quota_posture(order, pic, now, None, hold=False)
+        assert got["active"]["windows"]["five_hour"].get("retired") is True, got["active"]
+        assert got["active"]["band"] == "GREEN"
+    # the retired account is the strict coolest → the fleet 5h is its, and marked retired
+    warm = _row("mob@ocoron.com", 30.0, 50.0, slug="mob", s_reset=now + 3600, w_reset=now + 86400)
+    pic = _serving_picture([warm, act], "mob", now)
+    fw = cr._fleet_readings([warm, act], pic)
+    assert fw["five_hour"]["slug"] == "sarp" and fw["five_hour"]["retired"] is True, fw
+    # the band comes from weekly: a retired 5h never makes it hotter than the weekly reading
+    hot = _retired_row("sarp@ocoron.com", 96.0, "sarp")
+    pic = _serving_picture([hot], "sarp", now)
+    assert cr._quota_posture([hot], pic, now, None, hold=False)["active"]["band"] == "AMBER"
+
+
+def test_tick_row_and_heat_skip_retired_five_hour(monkeypatch):
+    act = _retired_row("sarp@ocoron.com", 91.0, "sarp")
+    assert cr._row_utils(act) == {"five_hour": None, "seven_day": 91.0}
+    rows: list[dict] = []
+    monkeypatch.setattr(cr, "_ledger_append", rows.append)
+    monkeypatch.setattr(cr, "_active_account_walled", lambda a, t, n: (False, act))
+    cr._tick_row([act], 98.0, FLEET_NOW)
+    assert len(rows) == 1, rows
+    assert rows[0]["session"] == "retired" and "pct" not in rows[0], rows[0]
+    assert rows[0]["weekly_pct"] == 91.0
+
+
+def test_status_text_five_hour_retired():
+    row = _retired_row("sarp@ocoron.com", 91.0, "sarp")
+    text = cr._fleet_quota_text(row)
+    assert text.startswith("session retired") and "weekly 91%" in text, text
+    assert cr._fmt_quota_window(row["five_hour"]) == "retired"
+    pic = _serving_picture([row], "sarp", FLEET_NOW)
+    posture = cr._quota_posture([row], pic, FLEET_NOW, None, hold=False)
+    line = cr._posture_status_line(posture, FLEET_NOW)
+    assert " · 5h retired · weekly 91%" in line and "burn 5h" not in line, line
+    assert "5h retired (sarp)" in line, line
+
+
+def test_retired_five_hour_is_never_hottest_nor_a_published_session_figure(capsys):
+    """Review pass 1 (W-992979e1): the posture's `hottest` (read by dispatch_headroom and the hook's
+    deny reason) never names the retired stand-in, even at a weekly tie of 0.0; the picture publishes
+    no session figure for it; and the queue line and `probe-current` say retired."""
+    now = FLEET_NOW
+    act = _retired_row("sarp@ocoron.com", 0.0, "sarp")
+    pic = _serving_picture([act], "sarp", now)
+    got = cr._quota_posture([act], pic, now, None, hold=False)
+    assert got["active"]["hottest"] == "seven_day", got["active"]["hottest"]
+    row = cr._fleet_picture([act], "sarp", now)["accounts"][0]
+    assert row["session_pct"] is None and row["session_retired"] is True, row
+    act["seven_day"] = None
+    got = cr._quota_posture([act], _serving_picture([act], "sarp", now), now, None, hold=False)
+    assert got["active"]["hottest"] is None and got["active"]["band_account"] is None
+
+
+def test_legacy_status_prints_a_retired_session_cell(tmp_path, monkeypatch, capsys):
+    """Review pass 1 (W-992979e1): the legacy (no-fleet) `--status` view prints `retired`, never
+    `0% (resets ?)`, for a retired 5h window."""
+    monkeypatch.setattr(cr, "_fleet_dirs", lambda: [])
+    row = {
+        "name": "sarp",
+        "valid": True,
+        "email": "sarp@ocoron.com",
+        "five_hour": {"utilization": 0.0, "resets_at_epoch": None, "retired": True},
+        "seven_day": {"utilization": 91.0, "resets_at_epoch": None},
+    }
+    monkeypatch.setattr(
+        cr, "_status_payload", lambda: {"pause": None, "live": "sarp", "accounts": [row]}
+    )
+    cr._cmd_status(False)
+    out = capsys.readouterr().out
+    assert "session retired" in out and "session 0%" not in out, out
+
+
+def test_queue_line_and_probe_current_print_a_retired_session(monkeypatch, capsys):
+    """Closing pass (W-992979e1): the `--status` queue line and `probe-current` say retired,
+    never a 0% session figure, for a retired 5h window."""
+    act = _retired_row("sarp@ocoron.com", 91.0, "sarp")
+    pic = _serving_picture([act], "sarp", FLEET_NOW)
+    cr._print_picture(pic)
+    out = capsys.readouterr().out
+    queue = next(line for line in out.splitlines() if line.startswith("queue:"))
+    assert "5h retired/91%" in queue, queue
+    monkeypatch.setattr(
+        cr,
+        "_capture_current_usage",
+        lambda: {"five_hour": dict(act["five_hour"]), "seven_day": dict(act["seven_day"])},
+    )
+    cr._cmd_probe_current(False)
+    out = capsys.readouterr().out
+    assert "session retired" in out and "session 0%" not in out, out

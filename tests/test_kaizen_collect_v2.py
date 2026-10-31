@@ -608,6 +608,39 @@ def test_daily_green_path_publishes(tmp_path: Path) -> None:
     assert f"| {dt.date.today().isoformat()} |" in text, "the kaizen-log row landed"
 
 
+def test_daily_runs_the_merge_tripwire_with_its_repo_and_no_mail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # W-622ec42c: the daily pass is the tripwire's only scheduler; its own --repo-root and --no-mail
+    # must reach the tripwire — a distinct repo and BOTH mail settings, so a hard-coded call fails
+    calls: list[tuple] = []
+    monkeypatch.setattr(kc, "_publish_merge_tripwire", lambda *a: calls.append(a))
+    monkeypatch.setattr(
+        kc, "send_mail", lambda root, body: True
+    )  # the collector's own mail: never sent
+    ev = tmp_path / "events"
+    ev.mkdir()
+    for f in GOLDEN.glob("*.jsonl"):
+        shutil.copy(f, ev / f.name)
+    log = tmp_path / "log.md"
+    log.write_text(LOG_STUB, encoding="utf-8")
+    root, day = tmp_path / "repo", dt.date.today()
+    for no_mail in (False, True):
+        rc = kc.daily(
+            day,
+            repo_root=root,
+            events=ev,
+            state=tmp_path / "state",
+            golden=GOLDEN,
+            log_paths=[log],
+            no_mail=no_mail,
+            holes_fn=lambda d: 2,
+        )
+        assert rc == 0
+    st = tmp_path / "state"
+    assert calls == [(day.isoformat(), st, root, False), (day.isoformat(), st, root, True)]
+
+
 def test_daily_rerun_never_reparses(tmp_path: Path) -> None:
     day = dt.date.today()
     rc, _, st, _ = _green_daily(tmp_path, day)
@@ -3570,8 +3603,9 @@ def test_lock_default_home_is_fixed_and_unreaped(monkeypatch: pytest.MonkeyPatch
 
 
 # ── the analyst's cells are HERS: a computed value may FILL, never OVERWRITE ─────────────────────
-# kaizen.md:202 promises the analyst's `Top friction fixed` / `Filed (spec/mail)` cells are "never
-# overwritten by a re-run". `_merge_cells` only half-kept that promise: it yielded to the analyst
+# kaizen.md's log-row table promises the analyst's text in `Top friction fixed` / `Filed (spec/mail)`
+# is never overwritten by a re-run (a bare collector count in Filed excepted — W-90163961, the tests
+# below that block). `_merge_cells` only half-kept that promise: it yielded to the analyst
 # when the NEW value was a dash, but a real computed value WON. That was harmless only while nothing
 # computed those cells. Wiring `Filed` to the measured filing count would have started silently
 # eating the analysis half's prose on the next cron run.
@@ -3615,6 +3649,105 @@ def test_force_dash_still_spares_the_analyst() -> None:
     merged = _merge_cells(new, old, force_dash=True)
     assert merged[1] == "—", "mechanical cells are refused"
     assert merged[6] == "friction" and merged[7] == "filed", "analyst cells survive the refusal"
+
+
+# ── W-90163961: the collector's OWN Filed value is not the analyst's ─────────────────────────────
+# A bare `N filed / N none / N unstated` cell is what the collector wrote on an earlier run of the
+# week; treating it as hand-written froze week 43's count from 10-22 to 10-25. An analyst who
+# extends the value owns it, exactly as before.
+
+_BARE = "98 filed / 248 none / 0 unstated"
+_FRESH = "120 filed / 300 none / 1 unstated"
+
+
+def _row7(filed: str, friction: str = "—") -> list[str]:
+    return ["2026-10-25", "90%", "—", "—", "—", "—", friction, filed]
+
+
+def test_a_collector_written_filed_cell_is_refreshed_by_a_same_week_run() -> None:
+    from kaizen_collect_v2 import _merge_cells
+
+    merged = _merge_cells(_row7(_FRESH), _row7(_BARE, "router fix"), force_dash=False)
+    assert merged[7] == _FRESH, merged
+    assert merged[6] == "router fix", "cell 6 has no collector value: the analyst's text stays"
+
+
+@pytest.mark.parametrize("force_dash", [False, True], ids=["unmeasurable-dash", "golden-refusal"])
+def test_a_dash_or_refusal_replaces_a_collector_filed_cell(force_dash: bool) -> None:
+    """H6, as for the mechanical cells: a stale count never survives under an advanced date. An
+    analyst-extended cell still survives the refusal."""
+    from kaizen_collect_v2 import _merge_cells
+
+    dashes = ["2026-10-25"] + ["—"] * 7
+    assert _merge_cells(dashes, _row7(_BARE), force_dash)[7] == "—"
+    extended = _BARE + "; fleet mail 01X"
+    assert _merge_cells(dashes, _row7(extended), force_dash)[7] == extended
+    if force_dash:  # a refused run never publishes a count, even one it computed
+        assert _merge_cells(_row7(_FRESH), _row7(_BARE), True)[7] == "—"
+
+
+@pytest.mark.parametrize(
+    "old",
+    [
+        _BARE + "; fleet mail 01M5JXEQQ5 (infra: same distro default)",
+        "18 filed / 15 none / 0 unstated (auto) · fleet this week: W-714ae2cf",
+        "16 filed / 73 none / 0 unstated (auto, 10-26..10-27) · fleet this week: W-4f36876c",
+        "18 filed / 15 none / 0 unstated · W-4c7edc74 (P1), W-cd73ac65",
+        _BARE + ".",
+        " · " + _BARE,
+        "098 filed / 248 none / 0 unstated",
+        "٣ filed / ١ none / ٠ unstated",
+        "98 filed / 248 none",
+        "98 filed /  248 none / 0 unstated",
+        "we saw " + _BARE + " this week",
+    ],
+    ids=[
+        "semicolon",
+        "auto-dot",
+        "auto-range",
+        "dot-items",
+        "trailing-dot",
+        "leading-dot",
+        "leading-zero",
+        "arabic-digits",
+        "two-part",
+        "double-space",
+        "inside-prose",
+    ],
+)
+def test_an_analyst_extended_filed_cell_still_wins(old: str) -> None:
+    from kaizen_collect_v2 import _merge_cells
+
+    assert _merge_cells(_row7(_FRESH), _row7(old), force_dash=False)[7] == old
+
+
+def test_the_filings_producer_cell_matches_the_collector_shape() -> None:
+    """The shape is read off the REAL producer: a change to its format fails here instead of
+    quietly re-freezing every week's count."""
+    sys.path.insert(0, str(REPO / "scripts" / "sysadmin"))
+    import kaizen_collect_v2 as kc
+    import kaizen_outcomes as ko
+
+    rows = [{"runs": {"fb_filed": 0, "fb_none": 12, "fb_unstated": 3}}, {"runs": {"fb_filed": 7}}]
+    orig = ko._window_deltas
+    try:
+        ko._window_deltas = lambda state, days: (rows, rows)
+        cell = ko.filings(days=["2026-10-25"]).cell
+    finally:
+        ko._window_deltas = orig
+    assert cell == "7 filed / 12 none / 3 unstated", cell
+    assert kc._COLLECTOR_CELL_SHAPES[7].fullmatch(cell), cell
+
+
+def test_upsert_refreshes_the_collector_filed_cell_in_the_same_week(tmp_path: Path) -> None:
+    from kaizen_collect_v2 import upsert_log_row
+
+    log = tmp_path / "log.md"
+    log.write_text(LOG_STUB, encoding="utf-8")
+    assert upsert_log_row(log, ["2026-10-22", "50%", "—", "—", "—", "—", "—", _BARE])
+    assert upsert_log_row(log, ["2026-10-25", "60%", "—", "—", "—", "—", "—", _FRESH])
+    rows = [ln for ln in log.read_text(encoding="utf-8").splitlines() if ln.startswith("| 2026-10")]
+    assert len(rows) == 1 and _FRESH in rows[0] and _BARE not in rows[0], rows
 
 
 # ── the FEEDBACK verdict, counted at the derivation layer ────────────────────────────────────────

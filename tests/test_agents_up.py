@@ -6,11 +6,13 @@ fake `ps` on the launcher's own PATH (`$HOME/.local/bin`) stands in for the live
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import pty
 import re
 import shutil
+import signal
 import subprocess
 import time
 from pathlib import Path
@@ -203,7 +205,7 @@ def test_print_lists_one_pane_per_builder_without_the_coordinator(tmp_path: Path
     # the inner command: claude resumes with the suppression and the wake prompt as ONE single-quoted word each
     assert (
         len(run) == 1
-        and f"claude -n fabrik-lib-dev1 --resume {DEV1} --settings '{SETTINGS}' 'You were relaunched"
+        and f"claude -n fabrik-lib-dev1 --permission-mode bypassPermissions --resume {DEV1} --settings '{SETTINGS}' 'You were relaunched"
         in _inner(run[0])
     ), out.stdout
     # the suppression: skillOverrides.auto-mode-setup=off and no spinner tips, and the survey off in the pane's env
@@ -459,6 +461,8 @@ case "$1" in
     # tmux-newfail: another launch created the session first; tmux-deadfail: tmux itself failed, no session exists
     if [ -f "$HOME/tmux-newfail" ]; then : > "$HOME/tmux-has"; exit 1; fi
     [ -f "$HOME/tmux-deadfail" ] && exit 1
+    # tmux-badids: the session is made but its first pane's ids come back unreadable (a failure inside start_grid)
+    if [ -f "$HOME/tmux-badids" ]; then : > "$HOME/tmux-has"; echo "garbage"; exit 0; fi
     n=$(next); case "$*" in *" -P "*) echo "@$n %$n" ;; esac
     exit 0 ;;
   new-window)
@@ -644,9 +648,19 @@ def test_the_launch_path_reports_what_it_could_not_do(tmp_path: Path) -> None:
     split = _tmux_home(tmp_path / "split", repo, has=False, owner=None)
     (split / "tmux-splitfail").write_text("", encoding="utf-8")
     out = _run(str(repo), home=split)
-    assert out.returncode == 0 and "no room for dev2's pane" in out.stderr, out.stderr
+    # T04 residue 3: a pane skipped for no room is exit 4, never 0 — the boot sweep reads 0 as "every builder
+    # relaunched"; the line names the session so a caller can tell which builder did not come back
+    assert out.returncode == 4, (out.returncode, out.stderr)
+    assert f"no room for dev2's pane (session {DEV2})" in out.stderr, out.stderr
     labels = [ln for ln in _log(split) if ln.startswith("set -p ")]
     assert labels == ["set -p -t %1 @agent dev1"], _log(split)
+    detached = _tmux_home(tmp_path / "split-detach", repo, has=False, owner=None)
+    (detached / "tmux-splitfail").write_text("", encoding="utf-8")
+    out = _run("--detach", str(repo), home=detached)
+    assert out.returncode == 4, (out.returncode, out.stderr)
+    assert "--detach — the fabrik-lib grid is up" in out.stderr, out.stderr
+    header = UP.read_text(encoding="utf-8").split("\nset ", 1)[0]
+    assert "4 SOME PANE NOT OPENED" in header and "1 tmux failed" in header, "exit list"
 
     bare = _home(tmp_path / "bare", transcripts=((repo, DEV1),))
     tmux = bare / ".local" / "bin" / "tmux"
@@ -1201,7 +1215,16 @@ def test_no_registry_takes_builders_from_the_identity_store(tmp_path: Path) -> N
     assert (
         "b1: .claude/worktrees/b1 is not a linked git worktree in place — no pane" in out.stderr
     ), out.stderr
-    assert "taken as the coordinator" in out.stderr and "b9" not in out.stdout, out.stderr
+    # The foreign b9 binding must surface nowhere, on either stream (a leak with no worktree here is reported on
+    # STDERR, like b1). Every path in the output is under tmp_path or the scripts' checkout, and either can hold
+    # the letters "b9" (a bare substring check read red under a path holding "bab6e599-b940", W-a9b3bc15), so
+    # those roots are blanked first and the rest is matched as a word.
+    said = out.stderr + out.stdout
+    for root in sorted(
+        {str(tmp_path), str(ROOT), str(UP.resolve().parents[2])}, key=len, reverse=True
+    ):
+        said = said.replace(root, "<root>")
+    assert "taken as the coordinator" in out.stderr and not re.search(r"\bb9\b", said), said
     assert "not the registry's" not in out.stderr, out.stderr  # there is no registry to name
     # a ledger that declares NO merge owner (decisions.py exit 3) launches the same way
     (repo / "docs").mkdir()
@@ -1387,7 +1410,10 @@ def test_an_oom_kill_is_named_in_the_hint(tmp_path: Path) -> None:
         "[dev1 was killed (exit 137, SIGKILL) — in this capped pane most likely at the fabrik-agents.slice memory"
         " ceiling (MemoryMax=17G)]" in got.stdout
     ), got.stdout + got.stderr
-    assert "[dev1 exited — run: claude -n dev1 --resume" in got.stdout, got.stdout
+    assert (
+        "[dev1 exited — run: claude -n dev1 --permission-mode bypassPermissions --resume"
+        in got.stdout
+    ), got.stdout
     # an uncapped pane names the kill and never claims a ceiling it does not have
     (home / "manager-down").write_text("", encoding="utf-8")
     out = _run("--print", str(repo), home=home)
@@ -1569,6 +1595,155 @@ def test_a_caller_with_no_terminal_detaches_and_says_so(tmp_path: Path) -> None:
     assert not any(ln.startswith("attach") for ln in log), log
 
 
+STOPPED = "before attaching — the reason is above; this tab stays open"
+
+
+def test_tab_with_no_terminal_says_why_and_exits_nonzero(tmp_path: Path) -> None:
+    """W-df2e24ed: the .bat's form (`--tab`) with no terminal still builds the grid, but never exits 0 silently — a
+    Windows Terminal tab closes on exit 0, so the operator saw a vanished or black tab. It exits 1 with the reason."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    out = _run("--tab", str(repo), home=home)  # pipes for stdin and stdout
+    assert out.returncode == 1, out.stderr
+    log = _log(home)
+    assert any(ln.startswith("new-session -d -s fabrik-lib") for ln in log), log
+    assert not any(ln.startswith("attach") for ln in log), log
+    assert "--tab but no terminal on stdin/stdout" in out.stderr, out.stderr
+    assert "tmux attach -t =fabrik-lib" in out.stderr, out.stderr
+    assert f"stopped (exit 1) {STOPPED}" in out.stderr, out.stderr
+    # with a terminal the same form attaches, and prints no stopped line
+    up = _tmux_home(tmp_path / "tty", repo, has=True, owner=str(repo))
+    out = _run("--tab", str(repo), home=up, tty=True)
+    assert out.returncode == 0, out.stderr
+    assert _log(up)[-1] == "attach -t =fabrik-lib", _log(up)
+    assert STOPPED not in out.stderr, out.stderr
+
+
+def test_tab_failure_inside_start_grid_prints_why_and_clears_the_flag(tmp_path: Path) -> None:
+    """W-df2e24ed: start_grid's own cleanup (unset `@agents_up_building`) and the `--tab` stopped line share ONE exit
+    handler — a failure inside start_grid prints the line and keeps its code, and the building flag is still
+    cleared; without --tab the cleanup runs and no line is printed."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    for flags, line in ((["--tab"], True), ([], False)):
+        home = _tmux_home(tmp_path / f"bad{len(flags)}", repo, has=False, owner=None)
+        (home / "tmux-badids").write_text("", encoding="utf-8")
+        out = _run(*flags, str(repo), home=home, tty=True)
+        assert out.returncode == 1, out.stderr
+        assert "gave no window and pane id" in out.stderr, out.stderr
+        assert "set-option -t =fabrik-lib: -u @agents_up_building" in _log(home), _log(home)
+        assert (f"stopped (exit 1) {STOPPED}" in out.stderr) is line, out.stderr
+    dead = _tmux_home(tmp_path / "dead", repo, has=False, owner=None)
+    (dead / "tmux-deadfail").write_text("", encoding="utf-8")
+    out = _run("--tab", str(repo), home=dead, tty=True)
+    assert out.returncode == 1 and f"stopped (exit 1) {STOPPED}" in out.stderr, out.stderr
+
+
+def test_tab_refuses_the_no_attach_modes(tmp_path: Path) -> None:
+    """`--tab` asks for an attach, so it is a usage error beside --print, --detach and --pane-cmd (nothing built)."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    for other in ("--print", "--detach", "--pane-cmd"):
+        home = _tmux_home(tmp_path / other.strip("-"), repo, has=False, owner=None)
+        for argv in (("--tab", other), (other, "--tab")):
+            out = _run(*argv, str(repo), home=home)
+            assert out.returncode == 2, (argv, out.stderr)
+            assert "--tab is the launcher's attach form" in out.stderr, (argv, out.stderr)
+            assert f"stopped (exit 2) {STOPPED}" in out.stderr, (argv, out.stderr)
+        assert not (home / "tmux.log").exists() or not any(
+            ln.startswith("new-session") for ln in _log(home)
+        ), _log(home)
+
+
+def test_tab_usage_errors_and_no_room_print_the_stopped_line(tmp_path: Path) -> None:
+    """Review W-df2e24ed: an argument error is a non-zero exit before the attach too, so under --tab it prints the
+    stopped line (the handler is installed before the flags are read); without --tab it does not. A no-terminal
+    --tab run whose grid left a builder without a pane exits 4, not 1, with the stopped line."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path / "usage", repo, has=False, owner=None)
+    for argv in (
+        ("--tab", "--window", "x"),
+        ("--tab", "--window", "2", "--window", "3"),
+        ("--tab", "--window", "2", "--print"),
+        ("--window", "x", "--tab"),  # review round 2: --tab is seen wherever it stands
+    ):
+        out = _run(*argv, str(repo), home=home)
+        assert out.returncode == 2, (argv, out.stderr)
+        assert f"stopped (exit 2) {STOPPED}" in out.stderr, (argv, out.stderr)
+    out = _run("--window", "x", str(repo), home=home)
+    assert out.returncode == 2 and STOPPED not in out.stderr, out.stderr
+    out = _run(str(repo), "--tab", home=home)  # flags after the repo are a usage error, still said under --tab
+    assert out.returncode == 2 and f"stopped (exit 2) {STOPPED}" in out.stderr, out.stderr
+    split = _tmux_home(tmp_path / "split", repo, has=False, owner=None)
+    (split / "tmux-splitfail").write_text("", encoding="utf-8")
+    out = _run("--tab", str(repo), home=split)
+    assert out.returncode == 4, out.stderr
+    assert "--tab but no terminal" in out.stderr and f"stopped (exit 4) {STOPPED}" in out.stderr, (
+        out.stderr
+    )
+
+
+def test_tab_no_terminal_check_comes_before_switch_client(tmp_path: Path) -> None:
+    """Review W-df2e24ed: a --tab run with no terminal and a TMUX variable set (a leaked one) exits 1 with the reason —
+    it never takes the switch-client exec, whose exit 0 would close the tab silently."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=True, owner=str(repo))
+    out = _run("--tab", str(repo), home=home, TMUX="/tmp/tmux-1000/default,1,0")
+    assert out.returncode == 1, out.stderr
+    assert not any(ln.startswith("switch-client") for ln in _log(home)), _log(home)
+    assert "--tab but no terminal" in out.stderr, out.stderr
+
+
+def test_tab_killed_by_a_signal_reports_the_signal_code(tmp_path: Path) -> None:
+    """Review W-df2e24ed: a --tab run killed while it waits (a closed tab's HUP, Ctrl-C, a TERM) reports 128+signal in
+    its stopped line, never the last command's status; without --tab the signal is left to bash as before."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(home),
+        "FABRIK_PROC_ROOT": str(home / "proc"),
+        "FABRIK_AGENTS_WINDOW_WAIT_S": "60",
+    }
+    for flags, line in ((["--tab"], True), ([], False)):
+        proc = subprocess.Popen(
+            ["bash", str(UP), *flags, "--window", "2", str(repo)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        try:
+            assert _until(
+                lambda: (home / "tmux.log").exists()
+                and "has-session" in (home / "tmux.log").read_text()
+            ), "never waited"
+            proc.send_signal(signal.SIGTERM)
+            _, err = proc.communicate(timeout=20)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+        if line:
+            assert proc.returncode == 143, err
+            assert f"stopped (exit 143) {STOPPED}" in err, err
+        else:
+            assert proc.returncode in (-signal.SIGTERM, 143), (proc.returncode, err)
+            assert STOPPED not in err, err
+
+
+def test_tab_window_says_it_is_waiting(tmp_path: Path) -> None:
+    """A `--tab --window n` tab whose grid is not up yet prints that it is waiting before its first sleep (else the
+    tab is black for up to FABRIK_AGENTS_WINDOW_WAIT_S), then the timeout reason and the stopped line."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    out = _run("--tab", "--window", "2", str(repo), home=home, FABRIK_AGENTS_WINDOW_WAIT_S="2")
+    assert out.returncode == 2, out.stderr
+    assert "waiting up to 2 s for the fabrik-lib grid to be built" in out.stderr, out.stderr
+    assert "was not ready within 2 s" in out.stderr, out.stderr
+    assert f"stopped (exit 2) {STOPPED}" in out.stderr, out.stderr
+    plain = _run("--window", "2", str(repo), home=home, FABRIK_AGENTS_WINDOW_WAIT_S="2")
+    assert plain.returncode == 2 and "waiting up to" not in plain.stderr, plain.stderr
+
+
 def test_an_up_grid_is_attached_not_rebuilt_and_the_owner_read_uses_the_option_target(
     tmp_path: Path,
 ) -> None:
@@ -1585,9 +1760,10 @@ def test_an_up_grid_is_attached_not_rebuilt_and_the_owner_read_uses_the_option_t
 
 
 def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_path: Path) -> None:
-    """The relaunch (L1, L4, L5): `claude -n <name> --resume <sid> "<wake prompt>"` with CLAUDE_CODE_RETRY_WATCHDOG=1 in
-    the allow-listed env and oom_score_adj 200 set before claude starts; the prompt orders the self-watch arm and
-    names no `hibernate.py woke` until T01a's lift-only woke is on this branch; no --permission-mode is passed (permissions.defaultMode decides). The
+    """The relaunch (L1, L4, L5): `claude -n <name> --permission-mode bypassPermissions --resume <sid> "<wake prompt>"`
+    with CLAUDE_CODE_RETRY_WATCHDOG=1 in the allow-listed env and oom_score_adj 200 set before claude starts; the prompt
+    orders the self-watch arm, then `hibernate.py woke --self <sid>`, resuming from its seed only on exit 0; the mode is
+    passed because a --resume keeps the session's saved mode (operator ruling 2026-10-30, W-b9b6472e). The
     pane command is EXECUTED against a fake claude that prints its argv and env."""
     repo = _repo(tmp_path, {DEV1: "dev1"})
     home = _home(tmp_path, transcripts=((repo, DEV1),))
@@ -1610,21 +1786,76 @@ def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_p
     )
     args = re.findall(r"^ARG<(.*)>$", got.stdout, flags=re.M)
     assert (
-        args[:6] == ["-n", "dev1", "--resume", DEV1, "--settings", SETTINGS] and len(args) == 7
+        args[:8]
+        == [
+            "-n",
+            "dev1",
+            "--permission-mode",
+            "bypassPermissions",
+            "--resume",
+            DEV1,
+            "--settings",
+            SETTINGS,
+        ]
+        and len(args) == 9
     ), got.stdout
-    prompt = args[6]
+    prompt = args[8]
     hub = UP.resolve().parent.parent.parent  # $HUB: the checkout the launcher runs from, double-quoted in the prose (no /opt/fabrik literal)
     assert f'bash "{hub}/scripts/sysadmin/selfwatch_arm.sh" {DEV1} in the background' in prompt, (
         prompt
     )
     assert "/opt/fabrik/scripts" not in prompt or str(hub) == "/opt/fabrik", prompt
-    assert "hibernate.py woke" not in prompt and "seed" not in prompt, prompt
-    assert "carry on as usual" in prompt, prompt
+    assert f'python3 "{hub}/scripts/sysadmin/hibernate.py" woke --self {DEV1}' in prompt, prompt
+    assert "only if it exits 0, resume your item from the seed it prints" in prompt, prompt
+    # review G3: `woke` exit 2 cannot tell (a corrupt marker or run record) — stay paused, never carry on; the
+    # relaunch prompt and the self-watch's hibernate RESUME line carry the SAME clause (both files read)
+    clause = (
+        "only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual;"
+        " on exit 2 stay paused and tell your coordinator"
+    )
+    assert clause in prompt, prompt
+    assert clause in (UP.parent / "mesh" / "claude-selfwatch.sh").read_text(encoding="utf-8")
+    assert "on any other exit" not in prompt, prompt
     assert "CLAUDE_CODE_RETRY_WATCHDOG=1" in got.stdout, got.stdout
     assert re.search(r"^OOM=(200|[3-9]\d\d|1000)$", got.stdout, flags=re.M), got.stdout
-    assert "--permission-mode" not in run and "--dangerously" not in run, run
+    assert "--dangerously" not in run, run
+    assert "--permission-mode bypassPermissions --resume" in _hint(run, tmp_path), run
     # the quoting survives the nested single quotes of the scope's `bash -c '<inner>'` for ANY folder name
     assert "'" not in prompt and "$" not in prompt, prompt
+
+
+def test_every_claude_command_cmd_of_builds_carries_the_permission_mode() -> None:
+    """W-b9b6472e (operator ruling 2026-10-30: every agent runs in bypassPermissions): a `--resume` keeps the saved
+    mode, so EVERY `claude -n` the pane builder writes — each launch branch and each printed relaunch line — names
+    `$perm`, and `$perm` is the one value. The routes (grid start, --pane-cmd, the spawn and --move launches) all go
+    through `cmd_of`; the behaviour tests above execute three of them, this one stops a future branch dropping it.
+    It reads the CODE lines only (comments stripped) and is keyed on the shapes a launch takes there — a `claude=`
+    assignment (any spelling of the command after it) and a printed `run: claude` hint — never on one `-n` spelling,
+    so `${perm}`, a reordered flag or a comment naming `claude -n` stays green, and a new branch spelled
+    `claude --name …` or `command claude …` without the mode goes red (review pass 1, all three seats)."""
+    text = UP.read_text(encoding="utf-8")
+    body = text[text.index("cmd_of() {") : text.index("\ncap_of() {")]
+    # code lines only: whole-line comments dropped and a trailing ` # …` cut (cmd_of quotes no ` #` in its strings)
+    code = "\n".join(
+        re.sub(r"\s+#.*$", "", ln) for ln in body.splitlines() if not ln.lstrip().startswith("#")
+    )
+    mode = re.compile(r"\$\{?perm\}?(?![A-Za-z0-9_])")
+    # one value, assigned once: a second assignment (or a conditional one) could switch every launch back
+    assigns = re.findall(r"^\s*(?:local\s+(?:-\w+\s+)?)?perm=(.*)$", code, flags=re.M)
+    assert len(assigns) == 1, assigns
+    assert assigns[0].strip("'\" ") == "--permission-mode bypassPermissions", assigns
+    # no other permission mode anywhere in the builder's code
+    assert code.count("--permission-mode") == 1, code
+    # every launch assignment and every printed relaunch line names the mode; an array form is refused outright
+    assert not re.search(r"^\s*(?:local\s+)?claude=\(", code, flags=re.M), "claude=( array launch"
+    # any assignment to `claude` — `local` or not, quoted any way, alone or after a `;` (review pass 2, Opus N1)
+    launches = re.findall(r"(?:^|;)\s*(?:local\s+)?claude=(\S[^\n]*)$", code, flags=re.M)
+    hints = re.findall(r"run: claude[^\n]*", code)
+    assert len(launches) >= 3 and len(hints) >= 2, (launches, hints)  # 3 launch branches + 2 hints
+    assert all(mode.search(ln) for ln in launches + hints), launches + hints
+    # and any other naming launch — written into `inner=` or a printed relaunch line in any form (review pass 2, Haiku)
+    named = re.findall(r"\bclaude\s+(?:-n|--name)\b[^\n]*", code)
+    assert all(mode.search(ln) for ln in named), named
 
 
 def test_an_up_grid_with_no_readable_root_is_attached_on_a_real_server(tmp_path: Path) -> None:
@@ -1924,7 +2155,7 @@ def test_a_spawned_builder_with_no_transcript_launches_with_session_id(tmp_path:
     assert out.returncode == 0, out.stderr
     runs = _runs(out.stdout)
     assert (
-        f"claude -n b2 --session-id {B2} --settings '{SETTINGS}' 'You were started by agents_up"
+        f"claude -n b2 --permission-mode bypassPermissions --session-id {B2} --settings '{SETTINGS}' 'You were started by agents_up"
         in runs["b2"]
     ), runs["b2"]
     assert "--resume" not in runs["b2"].split("; rc=")[0], runs["b2"]
@@ -1936,7 +2167,9 @@ def test_a_spawned_builder_with_no_transcript_launches_with_session_id(tmp_path:
     _transcript(home, tmp_path / "somewhere" / "else", B2)
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     runs = _runs(out.stdout)
-    assert f"claude -n b2 --resume {B2} --settings" in runs["b2"], runs["b2"]
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --resume {B2} --settings" in runs["b2"]
+    ), runs["b2"]
     assert f"--session-id {B3}" in runs["b3"], runs["b3"]  # the other builder is unaffected
     # the builder's own re-bind is the LAST row (no `spawned`, a pid): still spawner-bound (T10 F1 — the spawned row
     # binds it, the last row still names b3), so the transcript alone decides: none yet → --session-id, one → resume
@@ -1945,12 +2178,15 @@ def test_a_spawned_builder_with_no_transcript_launches_with_session_id(tmp_path:
     h2 = _home(tmp_path / "h2")
     out = _run("--print", str(repo), home=h2, AGENT_IDENTITY_FILE=str(rebound))
     runs = _runs(out.stdout)
-    assert f"--session-id {B2}" in runs["b2"] and f"claude -n b3 --session-id {B3}" in runs["b3"], (
-        out.stdout
-    )
+    assert (
+        f"--session-id {B2}" in runs["b2"]
+        and f"claude -n b3 --permission-mode bypassPermissions --session-id {B3}" in runs["b3"]
+    ), out.stdout
     _transcript(h2, _wt(repo, "b3"), B3)
     runs = _runs(_run("--print", str(repo), home=h2, AGENT_IDENTITY_FILE=str(rebound)).stdout)
-    assert f"claude -n b3 --resume {B3}" in runs["b3"], runs["b3"]
+    assert f"claude -n b3 --permission-mode bypassPermissions --resume {B3}" in runs["b3"], runs[
+        "b3"
+    ]
     # a binding with no `spawned` flag (every ordinary builder) never takes --session-id, transcript or not
     plain_repo, plain_store, _ = _spawn_repo(tmp_path / "plain", spawned=False)
     out = _run(
@@ -1959,9 +2195,10 @@ def test_a_spawned_builder_with_no_transcript_launches_with_session_id(tmp_path:
         home=_home(tmp_path / "plain"),
         AGENT_IDENTITY_FILE=str(plain_store),
     )
-    assert "--session-id" not in out.stdout and f"claude -n b2 --resume {B2}" in out.stdout, (
-        out.stdout
-    )
+    assert (
+        "--session-id" not in out.stdout
+        and f"claude -n b2 --permission-mode bypassPermissions --resume {B2}" in out.stdout
+    ), out.stdout
 
 
 def test_pane_cmd_prints_one_command_for_a_resolved_new_builder(tmp_path: Path) -> None:
@@ -1975,7 +2212,10 @@ def test_pane_cmd_prints_one_command_for_a_resolved_new_builder(tmp_path: Path) 
     assert out.returncode == 0, out.stderr
     assert len(out.stdout.splitlines()) == 1, out.stdout
     inner = _inner("run b2 " + out.stdout.strip())
-    assert f"claude -n b2 --session-id {B2} --settings '{SETTINGS}' '" in inner, inner
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --session-id {B2} --settings '{SETTINGS}' '"
+        in inner
+    ), inner
     assert "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1" in out.stdout and "CLAUDE_AGENT=b2" in out.stdout
     # without --new either form prints; here the same new session, so the same command
     again = _run("--pane-cmd", str(repo), "b2", B2, home=home, **env)
@@ -1999,8 +2239,10 @@ def test_pane_cmd_prints_one_command_for_a_resolved_new_builder(tmp_path: Path) 
     assert bad.returncode == 2 and bad.stdout == "", bad.stdout
     assert f"{B2} is not a spawner-bound session" in bad.stderr, bad.stderr
     ok = _run("--pane-cmd", str(prepo), "b2", B2, home=phome, **penv)
-    assert ok.returncode == 0 and f"claude -n b2 --resume {B2}" in _inner(
-        "run b2 " + ok.stdout.strip()
+    assert (
+        ok.returncode == 0
+        and f"claude -n b2 --permission-mode bypassPermissions --resume {B2}"
+        in _inner("run b2 " + ok.stdout.strip())
     )
     # a resolver refusal refuses with its own message and code
     nothing = _run("--pane-cmd", str(tmp_path / "gone"), "b2", B2, home=home, **env)
@@ -2026,12 +2268,24 @@ def test_the_first_prompt_reaches_claude_byte_for_byte(tmp_path: Path) -> None:
         )
         assert out.returncode == 0, (label, out.stderr)
         args = _argv(home, out.stdout.strip())
-        assert args[:5] == ["-n", "b2", "--session-id", B2, "--settings"] and args[5] == SETTINGS, (
+        assert (
+            args[:7]
+            == [
+                "-n",
+                "b2",
+                "--permission-mode",
+                "bypassPermissions",
+                "--session-id",
+                B2,
+                "--settings",
+            ]
+            and args[7] == SETTINGS
+        ), (
             label,
             args,
         )
-        assert len(args) == 7, (label, args)
-        prompt = args[6]
+        assert len(args) == 9, (label, args)
+        prompt = args[8]
         # the merge-owner default sentence carries backticks, the quoted rule carries double quotes, the name carries a `$`
         assert "`decisions.py --merge-owner`" in prompt, (label, prompt)
         assert (
@@ -2073,7 +2327,7 @@ def test_the_first_prompt_names_this_builders_coordinator_and_item_only(tmp_path
         **env,
     )
     assert out.returncode == 0, out.stderr
-    prompt = _argv(home, out.stdout.strip())[6]
+    prompt = _argv(home, out.stdout.strip())[8]
     assert "Your coordinator is coord-a." in prompt and "Your item is W-1a2b3c4d." in prompt, prompt
     assert "merge-owner" not in prompt, prompt
     # the resolver path: only the builder FABRIK_SPAWN_NAME names gets the two sentences
@@ -2089,8 +2343,8 @@ def test_the_first_prompt_names_this_builders_coordinator_and_item_only(tmp_path
     assert pr.returncode == 0, pr.stderr
     runs = {ln.split()[1]: ln for ln in pr.stdout.splitlines() if ln.startswith("run ")}
     b2, b3 = (
-        _argv(home, runs["b2"].split(" ", 2)[2])[6],
-        _argv(home, runs["b3"].split(" ", 2)[2])[6],
+        _argv(home, runs["b2"].split(" ", 2)[2])[8],
+        _argv(home, runs["b3"].split(" ", 2)[2])[8],
     )
     assert "Your coordinator is coord-a." in b2 and "Your item is W-1a2b3c4d." in b2, b2
     assert "coord-a" not in b3 and "Your item is" not in b3 and "merge-owner" in b3, b3
@@ -2325,10 +2579,13 @@ def test_a_new_sessions_hint_and_running_message_say_session_id(tmp_path: Path) 
     home = _home(tmp_path)
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
-    assert f"[b2 exited — run: claude -n b2 --session-id {B2} (after a /clear" in _hint(
+    assert (
+        f"[b2 exited — run: claude -n b2 --permission-mode bypassPermissions --session-id {B2} (after a /clear"
+        in _hint(run, tmp_path)
+    )
+    assert f"claude -n b2 --permission-mode bypassPermissions --resume {B2} (after" not in _hint(
         run, tmp_path
     )
-    assert f"claude -n b2 --resume {B2} (after" not in _hint(run, tmp_path)
     # running (a live claude on the sid): the message names the same flag
     home2 = _home(tmp_path / "r", ps_lines=f"claude --session-id {B2}")
     out = _run("--print", str(repo), home=home2, AGENT_IDENTITY_FILE=str(store))
@@ -2336,13 +2593,18 @@ def test_a_new_sessions_hint_and_running_message_say_session_id(tmp_path: Path) 
     said = subprocess.run(  # the message is decided when printed (T10 F14): run it
         ["sh", "-c", _inner(run).split("; exec ")[0]], capture_output=True, text=True, timeout=30
     ).stdout
-    assert f"close it there, then run: claude -n b2 --session-id {B2}]" in said, (said, run)
+    assert (
+        f"close it there, then run: claude -n b2 --permission-mode bypassPermissions --session-id {B2}]"
+        in said
+    ), (said, run)
     plain, pstore, _ = _spawn_repo(tmp_path / "plain", spawned=False)
     out = _run(
         "--print", str(plain), home=_home(tmp_path / "plain"), AGENT_IDENTITY_FILE=str(pstore)
     )
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
-    assert f"claude -n b2 --resume {B2} (after" in _hint(run, tmp_path)
+    assert f"claude -n b2 --permission-mode bypassPermissions --resume {B2} (after" in _hint(
+        run, tmp_path
+    )
 
 
 def test_a_hub_path_with_a_space_reads_as_one_path_in_the_prompts(tmp_path: Path) -> None:
@@ -2373,7 +2635,7 @@ def test_a_hub_path_with_a_space_reads_as_one_path_in_the_prompts(tmp_path: Path
     )
     assert out.returncode == 0, out.stderr
     runs = {ln.split()[1]: ln for ln in out.stdout.splitlines() if ln.startswith("run ")}
-    first = _argv(home, runs["b2"].split(" ", 2)[2])[6]
+    first = _argv(home, runs["b2"].split(" ", 2)[2])[8]
     assert f'bash "{hub.resolve()}/scripts/sysadmin/selfwatch_arm.sh" {B2}' in first, first
     assert f'python3 "{hub.resolve()}/scripts/whoami_agent.py" --as b2' in first, first
     # a resumed builder's wake prompt: the same quoting, and the hub literal gone
@@ -2391,7 +2653,7 @@ def test_a_hub_path_with_a_space_reads_as_one_path_in_the_prompts(tmp_path: Path
         },
     )
     wake_run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
-    wake = _argv(home, wake_run.split(" ", 2)[2])[6]
+    wake = _argv(home, wake_run.split(" ", 2)[2])[8]
     assert f'bash "{hub.resolve()}/scripts/sysadmin/selfwatch_arm.sh" {B2}' in wake, wake
     assert "/opt/fabrik" not in wake, wake
 
@@ -2465,9 +2727,10 @@ def test_a_sid_whose_last_row_names_another_builder_resumes(tmp_path: Path) -> N
     )
     out = _run("--print", str(repo), home=_home(tmp_path), AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert "--session-id" not in out.stdout and f"claude -n b2 --resume {B2}" in out.stdout, (
-        out.stdout
-    )
+    assert (
+        "--session-id" not in out.stdout
+        and f"claude -n b2 --permission-mode bypassPermissions --resume {B2}" in out.stdout
+    ), out.stdout
 
 
 def _refreshed(tmp: Path, store: Path, scope: str, sid: str, name: str) -> Path:
@@ -2489,10 +2752,15 @@ def test_t10_f1_a_refresh_row_after_the_spawned_row_still_launches_session_id(
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
     runs = _runs(out.stdout)
-    assert f"claude -n b2 --session-id {B2} --settings" in runs["b2"], runs["b2"]
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --session-id {B2} --settings"
+        in runs["b2"]
+    ), runs["b2"]
     _transcript(home, tmp_path / "anywhere", B2)
     runs = _runs(_run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store)).stdout)
-    assert f"claude -n b2 --resume {B2} --settings" in runs["b2"], runs["b2"]
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --resume {B2} --settings" in runs["b2"]
+    ), runs["b2"]
 
 
 @pytest.mark.parametrize("bad", [["x"], {"n": 1}, None, 7])
@@ -2507,7 +2775,10 @@ def test_t10_f18_a_spawned_row_with_a_non_string_name_never_breaks_the_resolver(
     store = _store(tmp_path, [*rows, odd], "odd.jsonl")
     out = _run("--print", str(repo), home=_home(tmp_path), AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert f"claude -n b2 --session-id {B2} --settings" in _runs(out.stdout)["b2"], out.stdout
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --session-id {B2} --settings"
+        in _runs(out.stdout)["b2"]
+    ), out.stdout
 
 
 def test_t10_f14_a_spawned_panes_hint_picks_its_flag_when_printed(tmp_path: Path) -> None:
@@ -2517,13 +2788,17 @@ def test_t10_f14_a_spawned_panes_hint_picks_its_flag_when_printed(tmp_path: Path
     home = _home(tmp_path)
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
-    assert f"[b2 exited — run: claude -n b2 --session-id {B2} (after a /clear" in _hint(
-        run, tmp_path
+    assert (
+        f"[b2 exited — run: claude -n b2 --permission-mode bypassPermissions --session-id {B2} (after a /clear"
+        in _hint(run, tmp_path)
     )
     _transcript(
         home, tmp_path / "where" / "it ran", B2
     )  # the same launched pane: its claude wrote a transcript
-    assert f"[b2 exited — run: claude -n b2 --resume {B2} (after a /clear" in _hint(run, tmp_path)
+    assert (
+        f"[b2 exited — run: claude -n b2 --permission-mode bypassPermissions --resume {B2} (after a /clear"
+        in _hint(run, tmp_path)
+    )
     home2 = _home(tmp_path / "r", ps_lines=f"claude --session-id {B2}")
     out = _run("--print", str(repo), home=home2, AGENT_IDENTITY_FILE=str(store))
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
@@ -2537,12 +2812,18 @@ def test_t10_f14_a_spawned_panes_hint_picks_its_flag_when_printed(tmp_path: Path
         ).stdout
         for shell in ("bash", "sh")
     ]
-    assert said[0] == said[1] and f"then run: claude -n b2 --session-id {B2}]" in said[0], said
+    assert (
+        said[0] == said[1]
+        and f"then run: claude -n b2 --permission-mode bypassPermissions --session-id {B2}]"
+        in said[0]
+    ), said
     _transcript(home2, tmp_path / "elsewhere", B2)
     again = subprocess.run(
         ["sh", "-c", _inner(run).split("; exec ")[0]], capture_output=True, text=True, timeout=30
     ).stdout
-    assert f"then run: claude -n b2 --resume {B2}]" in again, again
+    assert f"then run: claude -n b2 --permission-mode bypassPermissions --resume {B2}]" in again, (
+        again
+    )
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root reads a mode-0 file")
@@ -2832,9 +3113,10 @@ def test_a_failed_split_is_said_and_the_next_builder_takes_the_slot(
 ) -> None:
     sc = _Scratch(tmp_path, request, 6, fail_splits=(1,))  # dev2's split-window
     out = sc.up()
-    assert out.returncode == 0, out.stderr
+    assert out.returncode == 4, out.stderr  # a skipped pane is exit 4 (T04 residue 3)
     assert (
-        "no room for dev2's pane — open it by hand: " in out.stderr
+        "no room for dev2's pane (session " in out.stderr
+        and ") — open it by hand: " in out.stderr
         and "claude -n dev2" in out.stderr
     ), out.stderr
     assert sc.windows() == ["agents 4", "agents-2 1"], sc.windows()
@@ -3271,3 +3553,393 @@ def test_a_live_grids_viewer_session_is_not_stale_and_does_not_block_window_n(
     assert group and sc.one(f"{sc.S}+2", "#{session_group}") == group, out.stderr
     assert sc.one(f"{sc.S}+2", "#{window_name}") == "agents-2"
     assert out.returncode == 0, out.stderr
+
+
+# --- W-e38f8ee7: `--pane-cmd … --into <folder> --from <old sid> --replacing <pid>` (rotate-session --move's launch) ---
+
+MOVED = "8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e"
+
+
+def _move_repo(tmp: Path) -> tuple[Path, Path, Path]:
+    """`_bound_repo` (b2, b3 in their own trees) plus `b2-work`, the linked worktree b2 now works in; b2's session B2
+    is filed under its own tree, where the grid starts it. Returns (root, store, home)."""
+    repo, store = _bound_repo(tmp)
+    _worktree(repo, "b2-work")
+    home = _home(tmp, transcripts=((_wt(repo, "b2"), B2), (_wt(repo, "b3"), B3)))
+    return repo, store, home
+
+
+def _move_args(
+    repo: Path, name: str = "b2", sid: str = MOVED, into: str = "b2-work", old: str = B2
+) -> list[str]:
+    return [
+        "--pane-cmd",
+        str(repo),
+        name,
+        sid,
+        "--into",
+        into,
+        "--from",
+        old,
+        "--replacing",
+        "4242",
+    ]
+
+
+def _live_claude(home: Path, pid: int, cwd: Path, args: str) -> None:
+    """One claude process as `named_running` sees it: a fake `ps` line and a /proc/<pid>/cwd under FABRIK_PROC_ROOT."""
+    d = home / "proc" / str(pid)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "cwd").symlink_to(cwd)
+    (home / ".local" / "bin" / "ps").write_text(
+        f'#!/bin/sh\n[ "$*" = "-ww -C claude -o pid=,args=" ] || exit 1\necho \'{pid} {args}\'\n',
+        encoding="utf-8",
+    )
+
+
+def test_pane_cmd_into_prints_a_fresh_launch_with_the_move_prompt(tmp_path: Path) -> None:
+    """W-e38f8ee7 B6: `--pane-cmd … --into` prints ONE pane command that starts a FRESH `--session-id <sid>` claude, and
+    its wake is the move prompt: the folder and the new id, then rotate_session.resume_prompt's text with the id
+    filled in (the two copies are pinned equal). The replaced claude (`--replacing`, here running `-n b2` in the target
+    folder, as fleet's was) never makes it `running`; the kept shell's hint names `--session-id` while no transcript
+    exists. Executed by /bin/sh against a fake claude."""
+    repo, store, home = _move_repo(tmp_path)
+    _live_claude(home, 4242, _wt(repo, "b2-work"), f"claude -n b2 --resume {B2}")
+    _fake_claude(home)
+    out = _run(*_move_args(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert len(out.stdout.splitlines()) == 1, out.stdout
+    inner = _inner("run b2 " + out.stdout.strip())
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --session-id {MOVED} --settings '{SETTINGS}' '"
+        in inner
+    ), inner
+    assert "is already running elsewhere" not in inner, inner
+    assert "--resume" not in inner.split("; rc=")[0], inner
+    args = _argv(home, out.stdout.strip())
+    assert (
+        args[:7]
+        == [
+            "-n",
+            "b2",
+            "--permission-mode",
+            "bypassPermissions",
+            "--session-id",
+            MOVED,
+            "--settings",
+        ]
+        and len(args) == 9
+    ), args
+    prompt = args[8]
+    head = (
+        f"You were moved by agents_up into .claude/worktrees/b2-work as a fresh session {MOVED}, "
+        "so your hooks load from the tree you work in. "
+    )
+    assert prompt.startswith(head), prompt
+    spec = importlib.util.spec_from_file_location(
+        "_rs_parity", ROOT / "scripts" / "sysadmin" / "rotate_session.py"
+    )
+    rs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rs)
+    want = (
+        rs.resume_prompt("b2")
+        .replace("<your session id>", MOVED)
+        .replace(
+            "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh",
+            f'bash "{ROOT}/scripts/sysadmin/selfwatch_arm.sh"',
+        )
+        .replace(
+            "python3 /opt/fabrik/scripts/whoami_agent.py",
+            f'python3 "{ROOT}/scripts/whoami_agent.py"',
+        )
+    )
+    # the checkout's paths are double-quoted, as first_prompt's are, so a path with a space stays one word (pass 1, B1)
+    assert prompt[len(head) :] == want, (prompt[len(head) :], want)
+    said = _hint("run b2 " + out.stdout.strip(), tmp_path)
+    assert f"claude -n b2 --permission-mode bypassPermissions --session-id {MOVED}" in said, said
+    # the same valid launch with one flag given twice is refused, never silently the last value (pass 1, B5)
+    for flag, value in (("--into", "b2-work"), ("--from", B2), ("--replacing", "4242")):
+        twice = _run(*_move_args(repo), flag, value, home=home, AGENT_IDENTITY_FILE=str(store))
+        assert twice.returncode == 2 and twice.stdout == "", (flag, twice.stdout)
+        assert f"{flag} is given once" in twice.stderr, (flag, twice.stderr)
+
+
+def test_pane_cmd_into_refusals(tmp_path: Path) -> None:
+    """W-e38f8ee7 B7: every `--pane-cmd --into` refusal exits 2 and prints nothing — a known id or one with a
+    transcript, a name the resolver does not give, a `--from` that is not the chosen session, a folder that is no
+    linked worktree in place, a coordinator's tree or another builder's, ANOTHER live `claude -n <name>` in the folder
+    (the `--replacing` pid excepted), and the flag combinations."""
+    repo, store, home = _move_repo(tmp_path)
+    env = {"AGENT_IDENTITY_FILE": str(store)}
+    _worktree(repo, "coordinator")
+    (repo / ".claude" / "worktrees" / "plain").mkdir()
+    _transcript(home, tmp_path / "anywhere", NEW2)
+    for args, reason in (
+        (_move_args(repo, sid=NEW2), f"{NEW2} has a transcript — not a fresh session"),
+        (
+            _move_args(repo, sid=B3),
+            f"{B3} is a session this repo already knows — not a fresh session",
+        ),
+        (_move_args(repo, name="b9"), "b9 is not a builder the resolver gives"),
+        (_move_args(repo, old=B3), f"b2's session is {B2}, not {B3}"),
+        (
+            _move_args(repo, into="plain"),
+            "plain: .claude/worktrees/plain is no longer a linked git worktree in place",
+        ),
+        (
+            _move_args(repo, into="nope"),
+            "nope: .claude/worktrees/nope is no longer a linked git worktree in place",
+        ),
+        (_move_args(repo, into="coordinator"), "coordinator is the coordinator's tree"),
+        (_move_args(repo, into="b3"), "b3 is b3's tree"),
+        (_move_args(repo, into="Bad"), "'Bad' is not a worktree folder name"),
+    ):
+        bad = _run(*args, home=home, **env)
+        assert bad.returncode == 2 and bad.stdout == "", (args, bad.stdout, bad.stderr)
+        assert reason in bad.stderr, (args, bad.stderr)
+    # another claude by the same name already works in the folder: refused; the replaced pid alone is not (B6)
+    _live_claude(home, 4243, _wt(repo, "b2-work"), f"claude -n b2 --resume {DEV1}")
+    bad = _run(*_move_args(repo), home=home, **env)
+    assert bad.returncode == 2 and bad.stdout == "", bad.stdout
+    assert (
+        "another claude -n b2 (pid 4243) already runs in .claude/worktrees/b2-work" in bad.stderr
+    ), bad.stderr
+    # the three flags come together, and never with --new/--coordinator/--item
+    base = ["--pane-cmd", str(repo), "b2", MOVED]
+    for argv in (
+        [*base, "--into", "b2-work"],
+        [*base, "--into", "b2-work", "--from", B2],
+        [*base, "--from", B2, "--replacing", "4242"],
+        [*_move_args(repo), "--new"],
+        [*_move_args(repo), "--item", "W-1a2b3c4d"],
+        [*_move_args(repo), "--coordinator", "c"],
+        [*base, "--into", "b2-work", "--from", B2, "--replacing", "x1"],
+        [*base, "--into", "b2-work", "--from", "not-a-uuid", "--replacing", "1"],
+    ):
+        bad = _run(*argv, home=home, **env)
+        assert bad.returncode == 2 and bad.stdout == "", (argv, bad.stdout, bad.stderr)
+
+
+def test_pane_cmd_into_refuses_the_owner_a_shared_folder_and_a_foreign_pid(tmp_path: Path) -> None:
+    """W-e38f8ee7 review pass 1 (B2, B3, B4): `--into` refuses the merge owner's tree (the resolver drops the owner, so
+    only the owner check sees it), a folder another builder's session resolved to (not its own-named tree), and a
+    `--replacing` pid that is not a running `claude -n <name>` — a wrong pid would otherwise disarm the refusal of a
+    second same-named claude in the folder."""
+    # the merge owner: b3 is declared owner, so it is no builder and `--into b3` meets the owner check alone
+    repo, store, home = _move_repo(tmp_path / "own")
+    _ledger(repo, "b3")
+    _live_claude(home, 4242, _wt(repo, "b2"), f"claude -n b2 --resume {B2}")
+    bad = _run(*_move_args(repo, into="b3"), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert bad.returncode == 2 and bad.stdout == "", bad.stdout
+    assert "b3 is the coordinator's tree (the merge owner)" in bad.stderr, bad.stderr
+    # b3's session lives in b2-work, so b3's resolved folder is b2-work: never b2's to move into
+    repo, store = _bound_repo(tmp_path / "shared")
+    _worktree(repo, "b2-work")
+    home = _home(
+        tmp_path / "shared", transcripts=((_wt(repo, "b2"), B2), (_wt(repo, "b2-work"), B3))
+    )
+    bad = _run(*_move_args(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert bad.returncode == 2 and bad.stdout == "", bad.stdout
+    assert "b2-work is b3's tree" in bad.stderr, bad.stderr
+    # the replaced pid must be this builder's claude: another name, or no such process, refuses
+    repo, store, home = _move_repo(tmp_path / "pid")
+    for args in (f"claude -n b3 --resume {B3}", None):
+        if args:
+            _live_claude(home, 4242, _wt(repo, "b3"), args)
+        else:
+            (home / ".local" / "bin" / "ps").write_text(
+                '#!/bin/sh\n[ "$*" = "-ww -C claude -o pid=,args=" ] || exit 1\n', encoding="utf-8"
+            )
+        bad = _run(*_move_args(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+        assert bad.returncode == 2 and bad.stdout == "", (args, bad.stdout)
+        assert "--replacing 4242 is not a running claude -n b2" in bad.stderr, (args, bad.stderr)
+
+
+# ── D-1376 (W-8209a305): a grid this launch builds refreshes "All Agents (tabbed).bat" ───────────────────────────
+
+_FAKE_BAT = """import os, sys, time
+home = os.environ["HOME"]
+with open(os.path.join(home, "bat.argv"), "a", encoding="utf-8") as f:
+    f.write(" ".join(sys.argv[1:]) + "\\n")
+time.sleep(float(os.environ.get("FAKE_BAT_SLEEP", "0")))
+gate = os.environ.get("FAKE_BAT_GATE")
+end = time.monotonic() + 60
+while gate and not os.path.exists(gate) and time.monotonic() < end:
+    time.sleep(0.05)
+with open(os.path.join(home, "bat.done"), "a", encoding="utf-8") as f:
+    f.write("done\\n")
+"""
+_BAT_LOG = Path(".config") / "fabrik" / "agents-bat-refresh.log"
+
+
+def _bat_home(tmp: Path, repo: Path, *, has: bool = False, remembered: str | None = "DESK") -> tuple[Path, Path]:
+    """A fake-tmux HOME with a fake agents_bat.py (it appends its argv to $HOME/bat.argv, sleeps FAKE_BAT_SLEEP s,
+    and, when FAKE_BAT_GATE names a file, waits until it exists, then appends a line to $HOME/bat.done) and, unless `remembered` is None, a remembered-desktop file holding
+    `remembered` — "DESK" stands for a real folder under the HOME."""
+    home = _tmux_home(tmp, repo, has=has, owner=str(repo) if has else None)
+    fake = home / "fake_bat.py"
+    fake.write_text(_FAKE_BAT, encoding="utf-8")
+    if remembered is not None:
+        cfg = home / ".config" / "fabrik"
+        cfg.mkdir(parents=True, exist_ok=True)
+        if remembered == "DESK":
+            desk = home / "Desk Top"  # the live desktop path holds spaces
+            desk.mkdir()
+            remembered = f"{desk}\n"
+        (cfg / "agents-desktop").write_text(remembered, encoding="utf-8")
+    return home, fake
+
+
+def _lines(path: Path) -> list[str]:
+    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+
+
+def _until(pred, within_s: float = 15.0) -> bool:  # type: ignore[no-untyped-def]
+    end = time.monotonic() + within_s
+    while time.monotonic() < end:
+        if pred():
+            return True
+        time.sleep(0.05)
+    return bool(pred())
+
+
+def test_a_new_grid_refreshes_the_tabbed_bat_in_the_background(tmp_path: Path) -> None:
+    """D-1376: a grid this launch builds starts `agents_bat.py --tabbed` (no --desktop: the remembered one), detached:
+    the launch attaches without waiting for it. So does a `--detach` build (the boot sweep, an `add` cold start). The
+    child redirects its own fds, so the pty and the pipes `_run` reads close at once. Red on base: no refresh starts."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home, fake = _bat_home(tmp_path / "tty", repo)
+    t0 = time.monotonic()
+    out = _run(str(repo), home=home, tty=True, FABRIK_AGENTS_BAT=str(fake), FAKE_BAT_SLEEP="4")
+    took = time.monotonic() - t0
+    assert out.returncode == 0, out.stderr
+    assert _log(home)[-1] == "attach -t =fabrik-lib", _log(home)
+    assert _until(lambda: (home / "bat.argv").exists()), out.stderr
+    assert _lines(home / "bat.argv") == ["--tabbed"]
+    assert took < 4 and not (home / "bat.done").exists(), took  # the launch never waited for the refresh
+    assert "All Agents (tabbed).bat refresh started in the background" in out.stderr, out.stderr
+    assert str(home / _BAT_LOG) in out.stderr, out.stderr
+    assert _until(lambda: (home / "bat.done").exists())
+    # the boot sweep's and an `add` cold start's build
+    home, fake = _bat_home(tmp_path / "detach", repo)
+    out = _run("--detach", str(repo), home=home, FABRIK_AGENTS_BAT=str(fake))
+    assert out.returncode == 0, out.stderr
+    assert _until(lambda: (home / "bat.done").exists()), out.stderr
+    assert _lines(home / "bat.argv") == ["--tabbed"]
+
+
+def test_no_remembered_desktop_starts_no_refresh_and_says_how(tmp_path: Path) -> None:
+    """agents_bat.py with no usable remembered desktop probes every repo only to PRINT the .bat: no file, an empty or
+    blank one, or a path that is not a folder (as `_remembered` strips and checks) starts nothing, and stderr names the
+    one-time command; a remembered folder that is gone is named as such, and a remembered "file" that is a directory
+    prints no raw bash read error."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    for label, remembered, said in (
+        ("absent", None, "no desktop remembered"),
+        ("empty", "", "no desktop remembered"),
+        ("blank", "  \n", "no desktop remembered"),
+        ("dir", "", "no desktop remembered"),
+        ("gone", "/no/such/desktop\n", "the remembered desktop /no/such/desktop is not a folder"),
+    ):
+        home, fake = _bat_home(tmp_path / label, repo, remembered=remembered)
+        if label == "dir":
+            remembered_file = home / ".config" / "fabrik" / "agents-desktop"
+            remembered_file.unlink()
+            remembered_file.mkdir()
+        out = _run(str(repo), home=home, tty=True, FABRIK_AGENTS_BAT=str(fake))
+        assert out.returncode == 0, (label, out.stderr)
+        assert said in out.stderr, (label, out.stderr)
+        assert "--tabbed --desktop" in out.stderr, (label, out.stderr)
+        assert "read error" not in out.stderr and "Is a directory" not in out.stderr, (label, out.stderr)
+        time.sleep(0.3)
+        assert not (home / "bat.argv").exists(), label
+
+
+def test_only_a_grid_this_launch_built_refreshes_the_bat(tmp_path: Path) -> None:
+    """A grid already up (reattached as it is), a launch that lost the race, `--window` and `--print` build no grid, so
+    they start no refresh."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    up, fake = _bat_home(tmp_path / "up", repo, has=True)
+    assert _run(str(repo), home=up, tty=True, FABRIK_AGENTS_BAT=str(fake)).returncode == 0
+    raced, fake_r = _bat_home(tmp_path / "raced", repo)
+    (raced / "tmux-newfail").write_text("", encoding="utf-8")
+    (raced / "tmux-owner").write_text(str(repo) + "\n", encoding="utf-8")
+    assert _run(str(repo), home=raced, tty=True, FABRIK_AGENTS_BAT=str(fake_r)).returncode == 0
+    win, fake_w = _bat_home(tmp_path / "win", repo, has=True)
+    _run("--window", "2", str(repo), home=win, tty=True, FABRIK_AGENTS_BAT=str(fake_w))
+    printed, fake_p = _bat_home(tmp_path / "print", repo)
+    assert _run("--print", str(repo), home=printed, FABRIK_AGENTS_BAT=str(fake_p)).returncode == 0
+    time.sleep(0.5)
+    for home in (up, raced, win, printed):
+        assert not (home / "bat.argv").exists(), home.name
+        assert not (home / _BAT_LOG).exists(), home.name  # no child ever started
+
+
+def test_a_refresh_that_cannot_run_never_fails_the_launch(tmp_path: Path) -> None:
+    """A generator that is missing, or a log that cannot be opened, leaves the launch's exit code and attach as they
+    were, and is said in ONE line naming the by-hand command (no raw bash redirect message)."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home, _ = _bat_home(tmp_path / "missing", repo)
+    out = _run(str(repo), home=home, tty=True, FABRIK_AGENTS_BAT=str(home / "no-such.py"))
+    assert out.returncode == 0 and _log(home)[-1] == "attach -t =fabrik-lib", out.stderr
+    assert "could not start the All Agents (tabbed).bat refresh" in out.stderr, out.stderr
+    assert f"run by hand: python3 {home / 'no-such.py'} --tabbed" in out.stderr, out.stderr
+    home, fake = _bat_home(tmp_path / "nolog", repo)
+    (home / _BAT_LOG).mkdir()  # the append redirect cannot open a folder
+    out = _run(str(repo), home=home, tty=True, FABRIK_AGENTS_BAT=str(fake))
+    assert out.returncode == 0 and _log(home)[-1] == "attach -t =fabrik-lib", out.stderr
+    assert "could not start the All Agents (tabbed).bat refresh" in out.stderr, out.stderr
+    assert "Is a directory" not in out.stderr, out.stderr
+    time.sleep(0.3)
+    assert not (home / "bat.argv").exists()
+
+
+def test_concurrent_refreshes_coalesce_and_append_the_log(tmp_path: Path) -> None:
+    """Three grids built while one refresh still runs: the first runs, the second waits and runs after it (reading
+    the newer state), the third finds one waiting and exits at once — two runs, never three. Each refresh appends
+    one header line to the log, so no run's outcome is overwritten by a later one."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home, fake = _bat_home(tmp_path, repo)
+    def queued() -> int:  # children that took .pending: the child logs it once it holds the coalescing lock
+        return sum("agents_up: queued;" in ln for ln in _lines(home / _BAT_LOG))
+
+    # each wait makes the order deterministic: the first refresh is RUNNING (it has released .pending) before the
+    # second launch, and the second is WAITING (it holds .pending) before the third
+    waits = (
+        lambda: len(_lines(home / "bat.argv")) == 1,  # python3 is exec'd only after .pending is released
+        lambda: queued() == 2,
+        lambda: len([ln for ln in _lines(home / _BAT_LOG) if ln.startswith("agents_up: refresh ")]) == 3,
+    )
+    # the first refresh is held on a gate until the third child has queued or exited, never on a sleep a slow launch
+    # could outlast (a timed hold let refresh 2 start before child 3 tried .pending, and three ran)
+    gate = home / "bat.gate"
+    for wait in waits:
+        out = _run("--detach", str(repo), home=home, FABRIK_AGENTS_BAT=str(fake), FAKE_BAT_GATE=str(gate))
+        assert out.returncode == 0, out.stderr
+        assert _until(wait), _lines(home / _BAT_LOG)
+    assert _until(lambda: any("a refresh is already waiting" in ln for ln in _lines(home / _BAT_LOG)))
+    gate.write_text("", encoding="utf-8")
+    assert _until(lambda: len(_lines(home / "bat.done")) == 2, within_s=20), _lines(home / "bat.argv")
+    time.sleep(1)
+    assert _lines(home / "bat.argv") == ["--tabbed", "--tabbed"]
+    headers = [ln for ln in _lines(home / _BAT_LOG) if ln.startswith("agents_up: refresh ")]
+    assert len(headers) == 3 and all("fabrik-lib" in h for h in headers), _lines(home / _BAT_LOG)
+    # the third found one waiting and exited by the coalescing branch, not by a failure
+    waiting = [ln for ln in _lines(home / _BAT_LOG) if "a refresh is already waiting" in ln]
+    assert len(waiting) == 1, _lines(home / _BAT_LOG)
+
+
+def test_the_refresh_reads_the_desktop_agents_bat_remembers() -> None:
+    """The shell reads the remembered desktop by path and agents_bat.py implies overflow windows from PER_WINDOW: both
+    must be agents_bat.py's / agents_up.sh's own, or the refresh reads 'nothing remembered' forever and the implied
+    tabs drift from the windows the grid really builds."""
+    spec = importlib.util.spec_from_file_location(
+        "agents_bat_for_up_test", ROOT / "scripts" / "sysadmin" / "agents_bat.py"
+    )
+    assert spec is not None and spec.loader is not None
+    bat = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bat)
+    text = UP.read_text(encoding="utf-8")
+    assert bat._config_dir() == Path(os.path.expanduser("~/.config/fabrik"))
+    assert f'"$HOME/.config/fabrik/{bat.REMEMBER}"' in text
+    assert re.search(rf"^PER_WINDOW={bat.PER_WINDOW}$", text, re.M), bat.PER_WINDOW

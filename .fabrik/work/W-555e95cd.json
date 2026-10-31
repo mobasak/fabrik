@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:44.831691Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-555e95cd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5GYP5NESGS8B1AG81SSVGW2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook: a handoff-closed /fabrik-review does not cover the edits it reviewed (UNREVIEWED SPONTANEOUS WORK fires on reviewed, unmerged files)"
+}

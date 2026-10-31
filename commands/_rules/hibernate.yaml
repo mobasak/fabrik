@@ -21,9 +21,9 @@ entries:
   class: prose
   file: render
   baseline: 'Mark the pause: `python3 $H mark --words "<the operator''s words>"`'
-  current: 'Mark the pause: `python3 $H mark --words "<the operator''s words>"`'
+  current: 'Mark the pause: `python3 $H mark --words "<the operator''s words>"` with `--deadline 10m` appended (or the deadline the operator names; without one the T-3 hard hold never arms)'
   text:
-  - 'Mark the pause: `python3 $H mark --words "<the operator''s words>"`'
+  - 'Mark the pause: `python3 $H mark --words "<the operator''s words>"` with `--deadline 10m` appended'
 - id: hib-fresh-pause
   class: ban
   file: render
@@ -56,13 +56,13 @@ entries:
   file: render
   baseline: 'each repo whose row names a coordinator: ONE `SendMessage` to that peer with the output of `python3 $H brief --role coordinator --words "<the words>"`, verbatim;'
   text:
-  - for each repo whose row names a coordinator, ONE `SendMessage` to that peer with the output of `python3 $H brief --role coordinator --words "<the words>"`, verbatim
+  - for each repo whose row names a coordinator, ONE `SendMessage` to that peer with the output of `python3 $H brief --role coordinator --words "<the words>"` run with `--deadline` appended
 - id: hib-brief-agent
   class: prose
   file: render
   baseline: 'each repo whose row says to message each session (no live coordinator, two sessions holding the name, or your own repo) and each `outside /opt` session: the output of `brief --role agent`, to each session;'
   text:
-  - the output of `brief --role agent` to each session of a repo whose row says to message each session (no live coordinator, two sessions holding the name, or your own repo) and each `outside /opt` session
+  - the output of `brief --role agent` (the same `--words` and `--deadline`) to each session of a repo whose row says to message each session (no live coordinator, two sessions holding the name, or your own repo) and each `outside /opt` session
 - id: hib-pause-self
   class: prose
   file: render
@@ -133,21 +133,21 @@ entries:
   class: prose
   file: render
   baseline: Any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") → run `python3 $H woke`
-  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
+  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the pause was lifted) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
   text:
   - On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`
 - id: hib-resume-same
   class: prose
   file: render
   baseline: 'Exit 0 means the box slept (or the hub lifted the pause): resume the SAME item from its seed without being told again'
-  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
+  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the pause was lifted) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
   text:
-  - exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again
+  - exit 0 (the pause was lifted) means resume the SAME item from its seed without being told again
 - id: hib-exit-1-stay
   class: prose
   file: render
   baseline: Exit 1 says why to stay put (no wake yet, or you already resumed)
-  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
+  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the pause was lifted) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
   text:
   - exit 1 says why to stay put (no wake yet, or you already resumed)
 - id: hib-lift
@@ -155,7 +155,7 @@ entries:
   file: render
   baseline: 'The hub coordinator, once awake, ALWAYS runs `python3 $H lift` (a sleep during a fleet-quota hold writes no resume-wake row, and a pause with no sleep writes none either), then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle until prompted'
   text:
-  - 'The hub coordinator, once awake, ALWAYS runs `python3 $H lift` (a sleep during a fleet-quota hold writes no resume-wake row, and a pause with no sleep writes none either), then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle until prompted'
+  - 'The rotation tick lifts the pause by itself — after the sleep (during a fleet-quota hold too), after a network outage once the API answers again, or 30 minutes past T — and wakes every armed self-watch, so the hub coordinator, once awake, no longer always runs `python3 $H lift`: it runs it only when `status` or the wake shows the tick did not (a dead minute or `*/5` cron), then `targets`, and sends "RESUME — the hibernate is over" to every session: a relaunched session sits idle until prompted'
 - id: u-L8
   class: prose
   file: render
@@ -187,6 +187,9 @@ vanished:
   L2:
     rule:
     - hib-machinery
+  L5:
+    rule:
+    - hib-mark
   L11:
     rule:
     - hib-pool-never-messaged

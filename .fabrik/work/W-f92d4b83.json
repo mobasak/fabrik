@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:40.660594Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f92d4b83",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66P3KKPYFZWR7KCK28BJVJQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "selfwatch wakes on waker_lost after every hourly cron fire (wef4, web-ecommerce-factory)"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T20:31:58.774628Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-7999e0ea",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "panel or spec: pick A or B, record the D-row, then build",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "Who commits sync_projects.py's PORTS.md / docs/PROJECT_CATALOG.md when the fabrik CLI writes them into the hub MAIN checkout (cli.py _post_deploy_sync :64, :1595, :1632, :1869 resolve FABRIK_ROOT to /opt/fabrik outside a hub linked worktree, so any session's apply/scaffold dirties main)? Two approaches the build cannot settle (W-5568be8d critiques, Fable #2): (A) the CLI writes and records the output as generated, and a pipeline-run sync_projects --commit lands it through scripts/commit_generated.py; (B) merge_request.py grows a GENERATED set beside LEDGERS (:536) that _preflight (:1278) and _carry keep-and-realign instead of refusing. W-5568be8d fixed the collector half and PORTS.md's timestamp churn only"
+}

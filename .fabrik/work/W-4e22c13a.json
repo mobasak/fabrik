@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:26:40.254569Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-4e22c13a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M69261J1QNXDS4B9Y7XF70BK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "W-622ec42c closed; W-4a03df79 claimed — it starts with W-92389a31 (spec D1 amendment), please rotate kaizen first"
+}

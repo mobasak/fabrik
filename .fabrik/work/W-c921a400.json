@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T11:57:49.735108Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c921a400",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68STY9HA762Z9NW9BHD3MH9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "after the internet drop — intel's W-a9b3bc15 was already finished; MR 01M68N9ZXN waits; rotate intel"
+}

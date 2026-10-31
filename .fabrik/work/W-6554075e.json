@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T09:37:36.978855Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-6554075e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68N3TF39WP92MD82SVG5SCA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "# fleet status for the coordinator — your session held every live message I sent, so here they are by mail"
+}

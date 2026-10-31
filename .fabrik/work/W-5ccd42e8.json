@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T22:26:30.763982Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-5ccd42e8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64AF5AXMA1JSHS4MHY7W97P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: blocked",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-kaizen-w43"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:26.818647Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-216a9444",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5DW207SNMHAXW8CKNK7M63F",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Two /fabrik-review feedback rows ask for code: a by-design D-id owner must decide its residual, and review_receipt.py --init --carry <old receipt>"
+}

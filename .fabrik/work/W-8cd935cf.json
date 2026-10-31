@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:42.679079Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8cd935cf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5GC0R2W5WFVD526FFXWTKRB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: two corpus tests treat any command source that merely NAMES `fabrik-review-loop.js` as a review-loop workflow launcher — tests/test_review_queue_pass.py::test_every_workflow_command_carries_the_no_workflow_in_the_hub_note (~:147-155, `if \"fabrik-review-loop.js\" in p.read_text(...)`) and tests/"
+}

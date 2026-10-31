@@ -192,9 +192,10 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
     operator.
 14. Optional, not used by the hub: deny the AskUserQuestion tool in the builders' worktree settings (the same file
     as step 11, written the same way).
-15. Sessions launch with `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/active`, which runs every session in auto mode; the
-    launcher sets it. Each agent reports any permission prompt it still hits, and the fix is an allow entry in the
-    repo's `.claude/settings.json`.
+15. Sessions launch with `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/active` and `--permission-mode bypassPermissions`
+    (operator ruling 2026-10-30: every agent runs in bypassPermissions); the launcher sets both, and the flag is passed
+    on every launch because a `--resume` keeps the session's saved mode. Each agent reports any permission prompt it
+    still hits to its coordinator.
 16. No Workflow tool (D-961).
 
 ### 5 — The first coordinator run
@@ -240,8 +241,11 @@ What EACH COORDINATOR does from then on, with nothing left for the operator:
 The coordinator spawns at an item boundary when the ready items it would assign outnumber its idle builders and the
 band is GREEN with no LANE, and retires a builder at the boundary where its item closed and its queue is empty
 (§ Spawning and retiring builders). Every `add` and every `remove` regenerates `All Agents (tabbed).bat` on the
-remembered desktop by itself; running `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed` with no
-`--desktop` is the same regeneration by hand.
+remembered desktop by itself, and so does every new grid `agents_up.sh` builds (D-1376: in the background, coalesced,
+logged to `~/.config/fabrik/agents-bat-refresh.log`). Running `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py
+--tabbed` with no `--desktop` is the same regeneration by hand. A repo's overflow tabs are its live `agents-<n>`
+windows plus those its builder count implies at four panes a window, so a grid that is down keeps its tabs. Reaching,
+waking, relaunching and rotating the builders: `docs/reference/tmux-agents.md`.
 
 ### Spawning and retiring builders (`add`, `remove`)
 
@@ -317,15 +321,19 @@ absent or still being built, and with no window `agents-<k>` says so and attache
   bound in the repo's git scope in the identity store (W-89474fc1). The coordinator gets no pane: a name `coordinator`
   or `*-coordinator`, or the repo's declared merge owner (`decisions.py --merge-owner`); a ledger that cannot be read
   refuses the launch.
-- Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id> "<wake prompt>"` (the prompt is the
-  session's first turn: re-arm the self-watch, then carry on; the `hibernate.py woke --self <id>` step joins it with
-  W-6e656dac T01a's lift-only woke) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in a linked
+- Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --permission-mode bypassPermissions --resume <session id> "<wake prompt>"` (the prompt is the
+  session's first turn: re-arm the self-watch, run `hibernate.py woke --self <id>`, resume from the seed only on exit 0,
+  carry on as usual on exit 1, and on exit 2 — it cannot tell — stay paused and tell the coordinator) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in a linked
   git worktree in place under `.claude/worktrees/` (it holds a `.git` file, and no part of its path is a symlink): the
   one whose claude project folder holds the builder's session, else `.claude/worktrees/<name>` (W-456aa02a). Claude Code
   keeps the folder a pane STARTED in as the window's `CLAUDE_PROJECT_DIR` — where its hooks, settings and permissions
-  load from — after the session moves into another worktree, and files the transcript under the folder it works in;
-  so infra's pane, started by name in `worktrees/infra` while infra worked in `infra-uncapped`, ran a tree 1602 commits
-  behind for days. A candidate folder must be an agent name (`[a-z0-9][a-z0-9-]{0,31}`); another builder's own-named
+  load from — after the session moves into another worktree, and keeps filing the transcript under that start folder
+  (fleet's dea63b0f, working in `fleet-backfill-ci`, sat only under `fleet-brand-fix` and the main checkout, measured
+  2026-10-29), so a relaunch resumes it in the same stale folder; infra's pane, started by name in `worktrees/infra`
+  while infra worked in `infra-uncapped`, ran a tree 1602 commits behind for days. The remedy is `agents_up.sh
+  rotate-session <name> --move` (W-e38f8ee7): at an item boundary the pane is respawned with a FRESH session started in
+  the worktree the builder works in (`docs/workstation/session-history-retention.md`), and the next grid start finds
+  it filed there. A candidate folder must be an agent name (`[a-z0-9][a-z0-9-]{0,31}`); another builder's own-named
   tree and the coordinator's trees (a coordinator name, the declared merge owner) are never taken; a session in several worktrees, or two builders found in one, keep `<name>` (said on stderr,
   the launch continues); a found `agent-*` tree (Claude Code's subagent trees) is flagged. A name with no own worktree
   takes a found folder only where the repo declares its merge owner, and is dropped before its registry rows are read
@@ -438,8 +446,8 @@ python3 /opt/fabrik/scripts/sysadmin/agents_bat.py \
 ```
 
 `--tabbed` writes ONE `All Agents (tabbed).bat` instead (W-b9ad80ae D5): a named Windows Terminal window
-(`wt.exe -M -w fabrik-agents`) with, per repo, a first tab running `agents_up.sh /opt/<repo>` (attach-or-launch) and
-one tab per live window `agents-<k>` (k >= 2) running `agents_up.sh --window <k> /opt/<repo>`. A run with `--desktop`
+(`wt.exe -M -w fabrik-agents`) with, per repo, a first tab running `agents_up.sh --tab /opt/<repo>` (attach-or-launch)
+and one tab per live window `agents-<k>` (k >= 2) running `agents_up.sh --tab --window <k> /opt/<repo>`. A run with `--desktop`
 that wrote its file remembers the folder in `~/.config/fabrik/agents-desktop`; a `--tabbed` run without `--desktop`
 writes there (with nothing remembered it prints the text and says so, exit 0). Every regeneration holds
 `~/.config/fabrik/agents-desktop.lock` (one box-wide lock, 30 s at most) and writes through a unique temp file and a
@@ -454,12 +462,35 @@ distro comes from `--distro`, else a non-blank `$WSL_DISTRO_NAME`, else the dist
 `wslpath -w /` (`fabrik_deck.py::_default_distro`), so a run from tmux, systemd or code-server, where the variable
 is unset, still names this distro; `--distro ""` and an underivable distro refuse.
 
+`--list` prints instead the absolute path of every registered repo under `--opt` (a `.fabrik/session-agents.json`
+registry or a `.claude/worktrees` folder), one per line, and writes nothing (W-6e656dac T04). It skips the
+`agents_up.sh --print` check and needs no distro, because its caller is the boot sweep (`claude-reboot-sweep.sh`,
+tracked in `scripts/sysadmin/mesh/`): at boot the user bus may not answer yet, and a check that failed then would
+leave the list empty. The sweep runs `agents_up.sh --detach` on each path, and that command decides which builders
+the repo has. A folder it cannot read, or whose name holds a newline, is skipped with a stderr line while the rest are
+still listed (exit 0); so is a second spelling of one repo (a symlink to a listed repo — agents_up resolves `pwd -P`,
+so both would be one grid). Every skip is ONE stderr line ending `; skipped` (a newline in a name is printed escaped),
+and only those lines are noted `builders-skipped` in the sweep log. `--list` refuses `--desktop`, `--tabbed` and `--replace` (exit 2).
+
 Each .bat is self-contained and needs no hand-made Windows Terminal profile. `wt.exe` has no font-size option, so the
 .bat writes a Windows Terminal JSON fragment, `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Fabrik\<repo>.json`,
 holding a profile named `<Repo> Agents grid` (its own name, so a hand-made `<Repo> Agents` profile cannot shadow it)
 at font size 9, and then starts `wt.exe -M -w new new-tab -p "<Repo> Agents grid" … wsl.exe --distribution <distro>
---exec bash -l /opt/fabrik/scripts/sysadmin/agents_up.sh /opt/<repo>`. The command line is given in full, so the grid
-opens even before Windows Terminal has loaded the fragment, at the default font. The fragment loads when Windows
+--exec bash -l /opt/fabrik/scripts/sysadmin/agents_up.sh --tab /opt/<repo>`. The command line is given in full, so the
+grid opens even before Windows Terminal has loaded the fragment, at the default font.
+
+**A tab that fails stays open with its reason (W-df2e24ed).** `--tab` is the launcher's form: where a plain
+`agents_up.sh` with no terminal on stdin/stdout detaches and exits 0 (right for a coordinator's Bash tool, but Windows
+Terminal closes a tab whose command exits 0), `--tab` exits 1 (4 when a builder got no pane) and says so; any other
+non-zero exit before the attach — an argument error, or a signal as 128+signal — adds
+`agents_up: stopped (exit <n>) before attaching — the reason is above; this tab stays open`; a `--window` tab waiting
+for its grid says it is waiting. The attach itself is an exec: a failing attach shows tmux's own error (bash's when
+tmux cannot be run). A first tab may show nothing while its grid builds, and a `wsl.exe` that hangs rather than fails
+stays black until it returns. The fragment profile sets `"closeOnExit": "never"`, so a `wsl.exe` that fails before
+WSL starts (a `UtilAcceptVsock … accept4 failed 110` on a degraded Windows-WSL link, W-37b51748) stays readable too.
+The cost: a clean tmux detach (`C-b d`) leaves a `[process exited with code 0]` tab to close by hand. Like the font,
+`closeOnExit` applies once Windows Terminal has loaded the fragment. After this change, regenerate the desktop file
+once: `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed` (it writes to the remembered desktop). The fragment loads when Windows
 Terminal starts, and every Windows Terminal window shares one process, so 9pt applies once every Windows Terminal
 window has been closed after the first run. Nobody edits `settings.json`; Windows Terminal itself adds a
 `"source": "Fabrik"` stub there for the fragment's profile, as it did for WSL's own. The launcher runs what the hub's

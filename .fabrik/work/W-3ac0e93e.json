@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:32.746732Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3ac0e93e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5BNVF6G1VD7M3B0MBE7S6WC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib retired its vendored copy of scripts/enforcement/check_doc_stubs.py (fabrik-lib D-495) — its absence there is deliberate, not drift"
+}

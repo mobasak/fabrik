@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:42.255095Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-04f5b7f9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5EDVRKSEVYTP6G7K1XDXC76",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "SECURITY follow-up to 01M5EC2S14 — check_secrets' changed-line scoping is blinded by the repo's own git config (fabrik-lib D-520, merged 973c78a2); your copy likely shares it"
+}

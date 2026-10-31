@@ -39,7 +39,10 @@ All three ride the **wake-proof stamp-check runner** (`scripts/sysadmin/weekly_c
 shrink ruling): the cron fires hourly, the runner runs the job only when its success stamp is
 older than the job's period (1 day for these three; the sibling audit jobs stay weekly), and
 the stamp is touched only on success — a night the box hibernated through is caught up within an hour of
-waking, and a failing job retries hourly with every attempt in the log. The retired weekly meter
+waking, and a failing job retries hourly with every attempt in the log. While a `/hibernate` pause is
+marked and not lifted the runner skips the job with its stamp untouched (`hibernate.py paused` exit 0;
+any other exit, a timeout or a missing script runs it and logs one line — W-6e656dac), so the cycle
+the pause skipped is caught up in the first hour after the lift. The retired weekly meter
 `kaizen_metrics.py` lives in `scripts/sysadmin/archived/` (operator ruling, M0); its old
 `weekly_catchup.sh kaizen_metrics.py` crontab line is replaced by the three lines above.
 
@@ -64,12 +67,26 @@ complete). In order:
    never 0-baselined, and every metric excludes such a row from numerator AND denominator,
    counting it as a stated **bump-day gap** (the bump day goes honestly quiet per-field). A row
    claiming `runs_noncheck > runs` violates non-check ⊆ all and is warned + unmeasured.
+   After the waste tier, the **merge tripwire** (`merge_tripwire.py`, W-622ec42c, D-1384) runs for the
+   day and the two before it, fail-open: merge wall time, refusal events by class, and the red-master
+   series before and after the post-merge valve. It rewrites `.git/fabrik-merge/tripwire.jsonl` and
+   `tripwire-line.txt` (the coordinator's prompt line) and mails the coordinator once per tripped
+   episode, unless the pass ran with `--no-mail`; what each reading measures and when the tripwire
+   fires is the module docstring's.
 4. **Log row + mail** — the ISO-week row is upserted into both role logs (the write is
    flock-serialized against concurrent writers — the lock is keyed on the log's ABSOLUTE
    path and lives at the fixed, unreaped `~/.claude/state/kaizen-log-locks/` (independent of
    `KAIZEN_STATE_DIR`; tempdir siting sat under systemd-tmpfiles' 30-day reaper), so a debug
    run and the cron meet on the same flock and no tracked dir grows a `.lock`; tmp+atomic-replace with the log's own mode; transient `tmp*.tmp`
-   files beside the logs are reaped after 1h — W19–W24) and the metrics mail
+   files beside the logs are reaped after 1h — W19–W24), then **committed** (W-5568be8d): the
+   cron runs from the hub's MAIN checkout, where an uncommitted row made `merge_request.py`
+   refuse every merge touching the logs, so `scripts/commit_generated.py` lands ONE pathspec
+   commit (`Agent-Name: kaizen-collector`, never pushed — the merge owner's next push carries
+   it) holding only the logs that were clean at HEAD before this write, or still hold this
+   collector's own unlanded row on the same HEAD blob. A sibling's edit, a staged log, a
+   linked worktree or a mid-operation repo is left dirty with a `[commit_generated]` reason
+   line on stderr (one per refused path, one per failed commit) (→ `~/.claude/kaizen.log`); a held `index.lock` is retried and, if it
+   persists, recorded in `~/.claude/state/generated-output.json` so the next run lands it. The metrics mail
    goes to the shared `fabrik` mailbox (fail-soft: a dead mail store costs the notification,
    never the row). **The single-source law (W6-1):** every mechanical weekly cell AGGREGATES
    THE PUBLISHED DAY SERIES — the one already-delta-honest source — never a store-row
@@ -203,13 +220,15 @@ version · every week day gapped/unpublished:
 | Review rounds /plan | **real** (M1) | the single-source law's ONE carve-out (W8-1): recomputed latest-per-sid over the ISO week's day-scoped delta rows via `kaizen_outcomes.review_rounds(days=<week days>)` — never the day points (anonymous points cannot per-session-deduplicate a multi-day session). All windowed honesty (growth-only population, the 20% attribution floor, bootstrap/bump-day/pre-v3/shrink causes) runs at week scope; the detail rides stderr with the row (W9-2). A day whose point was never published still contributes when its store rows exist — the weekly value is not reconcilable against the day series by design (W9-4). |
 | Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
 | Top friction fixed | **the analyst's** | Never overwritten by a re-run. Never computed. |
-| Filed (spec/mail) | **the analyst's**, auto-FILLED when empty | Never overwritten by a re-run: a value the analyst typed always wins. When the cell is empty the collector fills it from the measured close-out verdicts (`kaizen_outcomes.filings()` — `N filed / N none / N unstated`), so a week nobody annotated still carries its filing counts instead of a dash. |
+| Filed (spec/mail) | **the analyst's**, auto-FILLED when empty | When the cell is empty the collector fills it from the measured close-out verdicts (`kaizen_outcomes.filings()` — `N filed / N none / N unstated`), so a week nobody annotated still carries its filing counts instead of a dash. While the cell is EXACTLY that bare count it is the collector's own, and every later run of the week refreshes it (W-90163961); any text the analyst adds (`…; fleet mail …`, `… (auto) · …`) makes it the analyst's, and from then on no re-run overwrites it. A bare count typed by hand reads as the collector's. |
 
 **Idempotence** — the row is keyed by ISO week: a same-week re-run updates that week's row;
 mechanical cells always take the newly computed value **including a dash** (a fresh honest `—`
 must never republish the previous run's stale number under a new date); only the ANALYST cells
-(`Top friction fixed`, `Filed`) yield a `—` to whatever a human/agent put there. On a golden
-refusal the mechanical cells are stamped `—` regardless while the analyst cells still survive.
+(`Top friction fixed`, `Filed`) yield a `—` to whatever a human/agent put there — except a `Filed`
+cell that is still the collector's own bare count, which is treated like a mechanical cell. On a
+golden refusal the mechanical cells, and a collector-owned `Filed`, are stamped `—` regardless
+while the analyst's cells still survive.
 **A wrong metric is worse than an absent one** — unmeasurable renders `—` with its reason on
 stderr and in the mail, never a fabricated 0.
 
@@ -264,6 +283,7 @@ re-opens on M1 activation data.
 | `scripts/sysadmin/kaizen_outcomes.py` | outcome tier: rework miner, fleet-health sweep, premature-stop reader |
 | `scripts/sysadmin/kaizen_backfill.py` | one-time transcript-era backfill + the noise-floor report |
 | `scripts/sysadmin/kaizen_waste.py` | the token-waste tier (D-1118): six daily waste series + breakdown, `--backfill`, `--rebaseline`; categories and control rules in `docs/reference/kaizen-waste-define.md` |
+| `scripts/sysadmin/merge_tripwire.py` | the merge program's daily tripwire (W-622ec42c, D-1384): merge wall time, refusal classes, red-master before/after the post-merge valve; `--day D [--publish [--no-mail]] [--json]` |
 | `scripts/sysadmin/weekly_catchup.sh` | wake-proof stamp-check runner (daily kaizen jobs + weekly audits) |
 | `scripts/sysadmin/archived/kaizen_metrics.py` | the RETIRED weekly v1 meter (M0 operator ruling) |
 | `scripts/sysadmin/kaizen_shrink_audit.py` / `kaizen_immune_list.py` | the M0 census engine + immune registry |
@@ -309,6 +329,20 @@ inbox addressed to **kaizen** — the fourth hub agent, the feedback loop's owne
 The digest is informational (`ack: no`): kaizen reads the ledger directly and is woken by
 `scripts/sysadmin/feedback_watch_arm.sh` when a queue rises, so the digest is the day's audit trail. Watermarked
 (`~/.claude/state/feedback-relay.watermark`), at-most-once per verdict, non-fatal to the collector.
+
+A second reader rides the same job right after it: `scripts/sysadmin/lessons_relay.py` (W-d6ebcc04, for
+W-682f1189) mails kaizen ONE digest of the entries written into any repo's `docs/LESSONS_LEARNT.md`,
+`docs/lessons-learnt.md` or `AFCL.md` since its last run — a pointer row per entry, `- [ ] <repo>/<file>:<line> ·
+<heading>`, at most 150 a mail (the rest arrive next run), each answered by a command or rule edit or a reject with
+its reason, the digest acked (`ack: required`) once its rows are answered. Its cursor is
+`~/.claude/state/lessons-relay.json`: `--seed` records every current entry and sends nothing (the backlog is
+kaizen's one-time triage; it refuses an existing cursor without `--force`); no cursor, or one that does not parse,
+exits 1 and sends nothing. A heading inside a code block opened with an info string (` ```bash `) is not an entry; a
+bare fence line is read as text, and so is a tagged opener whose block holds another tagged opener as long before its
+closer, because the legacy scaffold template leaves a stray opener in 27 of 84 files and strict parsing paired it with
+a later lesson's code block and hid that lesson. The chosen direction: a misread block shows a code comment as a row
+kaizen rejects, never hides a lesson. A mail stays under 60 KiB (mail.py
+refuses over 64 KiB); `--dry-run` prints the digest.
 
 The same job carries two more riders: `scripts/sysadmin/rules_currency_watch.py` (mails infra when a pack's
 pinned runtime falls behind) and `scripts/sysadmin/vps_script_drift.py` (W-c792a205 — mails fleet when a VPS is
@@ -398,11 +432,14 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/commit_generated.py`
 - `scripts/sysadmin/archived/kaizen_metrics.py`
 - `scripts/sysadmin/feedback_relay.py`
 - `scripts/sysadmin/kaizen_collect.py`
 - `scripts/sysadmin/kaizen_collect_v2.py`
 - `scripts/sysadmin/kaizen_digest.py`
 - `scripts/sysadmin/kaizen_waste.py`
+- `scripts/sysadmin/lessons_relay.py`
+- `scripts/sysadmin/merge_tripwire.py`
 - `scripts/sysadmin/vps_script_drift.py`
 <!-- END related-scripts -->

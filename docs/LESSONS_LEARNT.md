@@ -1,6 +1,74 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A screen signal is measured on idle screens too, not only on busy ones (2026-10-31, W-c814836f)
+
+**What happened:** the coordinator's hand-made builder watch read a pane as busy when any row held `…` or `esc to interrupt`. Captured on 23 live panes, no pane showed `esc to interrupt` at all, and 13 of the 16 idle panes showed `…` in their truncated status hint ("new task? /clear to save 669.2k t…"), so the watch read nearly every idle builder as busy and woke for nobody. Its busy list also counted "shells still running", which had hidden an idle builder for 2 h.
+
+**Lesson:** a screen-state rule is graded on captures of BOTH states before it is trusted: what a busy pane shows is half the evidence; the other half is that no idle pane shows it. Anchor the rule to the row that only one state draws (here the spinner row above the input box, against the `· done` turn-end row).
+
+## A sentence for the fleet's contract is censused across the fleet before it names a file (2026-10-31, W-b9916ab1)
+
+**What happened:** the parked design for D-1396 named `python3 scripts/agent_status.py` and `builder.md` for every coordinator, because MEASURE checked one project besides the hub (web-ecommerce-factory) and found it there. Both critique seats ran `find /opt`: the script is in 3 of 51 repos and not in the sync manifest, `builder.md` only in the hub, and `add` refuses in every project without a role charter. As written, the sentence would have been false in 48 repos the day the sync shipped it.
+
+**Lesson:** before a template sentence names a path or a command, list it across every `/opt` repo the sync reaches with `find /opt -mindepth <d> -maxdepth <d> -path '/opt/*/<path>' -not -path '*/worktrees/*'`, `<d>` the path's depth below `/opt` (3 for `scripts/<x>.py`), since an unbounded `-path` also matches every worktree and pin copy, and read whether `scripts/fabrik_synced_manifest.py` carries it; a hub tool is named hub-absolute with `--repo .`, which is the template's own pattern.
+
+## Measure a merge driver with real git, never a replica of it (2026-10-31, W-53360407)
+
+**What happened:** the spec's first replay ran the ledger resolver over a single-base replica of each merge and read 67 of 70 builder ledger-only merges cleared (spec § Derivations D1). Re-measured with the driver registered and real `git merge` run, 58 of 67 builder merges cleared: git hands a driver a virtual merge base on a criss-cross history, which the replica never built. The obvious fix for those, `merge.ledger.recursive=binary`, duplicates entries. Separately, a supersede row minted on a branch behind master was refused by the DANGLING-pointer check, because the row it supersedes had landed on master only.
+
+**Lesson:** a figure about a git mechanism is taken from that mechanism run end to end (`git merge` in a clone with the attribute and driver set), never from a model of its inputs; and merge master before minting a row that points at a row master just gained.
+
+## A rule added to a seat definition is charged to every command that names the seat (2026-10-31, mail 01M65ZP80Q)
+
+**What happened:** kaizen added the D-935 `capped_run.sh` rule for review seats to the probe catalogue (175 words) and to the fabrik-reviewer House rules (123 words). The corpus check then exited 5: six commands broke their L1 word ceiling, `/fabrik-task` among them, though its own text was never touched. The ceiling counts every file under `commands/` that a command names, plus the definition of every seat it names, and several commands had almost no headroom. The catalogue rule was cut to a pointer and the agent clause to ~90 words, which left four commands over, so their ceilings were raised by hand under D-1399. Separately, the design critique showed that a rule telling seats to prefix `capped_run.sh` would have hidden every prefixed command from `seat_guard.py`, which unwraps only the wrappers it knows by name.
+
+**Lesson:** before adding text to a seat definition or a shared fragment, run `assemble_commands.py --check` once on a scratch edit to see which commands it charges, and put the rule once, where every reader already loads it, with pointers elsewhere. A rule that tells agents to put a new launcher in front of their commands checks first that every guard keyed on argv unwraps that launcher.
+
+## A mechanism and the command that triggers it can each pass review while the pair never fires (2026-10-30, W-6e656dac T06)
+
+**What happened:** T06 built the T-3 hard hold, armed only for a mark with a deadline, and passed its own gates. The `/hibernate` command text, owned by an earlier ticket, still ran `mark` with no `--deadline`. So the hold the plan exists for would never have armed in real use. Neither per-ticket review saw it, because each looked at one half. The whole-plan review's Fable seat found it from the other side ("a no-deadline pause never arms"), and following that seam led to the command text. The same review found the T-3 arm failing open on a dead */5 tick, and seven launchers proceeding on a corrupt marker that `woke` and `status` refused. Three passes: 15 → 2 → 0 confirmed.
+
+**Lesson:** when a mechanism keys on an input (a flag, a field), the integration review traces that input from the operator's entry point down to the mechanism, and probes the path the command actually runs, not only the mechanism with the input supplied. A fail-closed rule decided in one verb (`woke` exits 2) is checked against every reader of the same state: one reader that fails open undoes it. Fix the class in the shared verb, not in its seven callers.
+
+## A state file the probe refreshes is a clock that never runs out (2026-10-30, W-6e656dac T04)
+
+**What happened:** T04's self-watch put an empty lift file back while it was "under 5 s old", reading the file's mtime. The network gate that runs before that check `touch -c`es the same file on every probe, so the file was always under 5 s old, and an empty lift was never consumed. The watch then probed the API once a second forever. The same review found a second pattern: a once-per-boot stamp written before the work it guards latched a failed launch, and a `repo<TAB><path>` key read through `awk -v` never matched a TAB or backslash path. Four review rounds converged 41/13 → 9/5 → 4/1 → 0, and every defect in rounds 2-3 sat in the previous round's fix.
+
+**Lesson:** a timing check never reads a timestamp that another step of the same loop writes, so it keeps its own clock. A latch is written only after the work it records succeeded, and it is keyed per unit. A key that crosses into awk or a shell goes through `ENVIRON` with its free-form field last, never `-v`, which rewrites backslashes. Give the coder each fix as an invariant plus the shapes to hold, not a patch, and probe the fix's own inputs before the pin.
+
+## A wrapper's settle window can hide the kill a grader exists to catch (2026-10-30, W-73d00b05)
+
+**What happened:** a grader that ran a real `capped_run.sh` and asserted a detached runner's 3 s fake sync still finished passed on the bare start it exists to refuse: capped_run polls a scope still active after its command exits for up to 5 s before its EXIT trap stops it, and the 3 s sync finished inside that grace. Only the always-bare mutant showed it.
+
+**Lesson:** when a grader proves something survives a wrapper, size the subject past every grace the wrapper gives (settle polls, TimeoutStopSec, kill-after), and run the grader against the mutant that restores the bug before trusting its green.
+
+## Time a lock's tail from the timestamps its steps already leave (2026-10-30, W-4f4ac600)
+
+**What happened:** a merge lock was held ~4.3 min after a merge commit that owed the governance sync, and the item named five suspect steps. A live sampler had started after the landing and saw none of it; the shared reflogs (`master` for the CAS, `origin/master` for the push) and the mail store's mtimes (reply, ack) split the window in one read: carry + push 6 s, sync 251 s, reply + ack 1 s, and two no-sync landings closed the case as controls.
+
+**Lesson:** before instrumenting a slow serial path, list the durable side effects each step writes (a ref move, a file, a mail) and read their times; a step with no timestamp is the gap to instrument, not the whole path. Then compare with a run that skipped the suspect step.
+
+## A cheap selector's saving can be the edges it cannot see (2026-10-29, W-1fb11ec8)
+
+**What happened:** an import-closure selector replayed 17 of 17 past catches and cut the merge leg's selection 26 %. Two critique seats named the import edges it could not resolve (relative imports, sys.path-rooted packages, literal `"x.py"` loads); resolving them made one modified script's closure ~120 scripts and the selection larger than the rule it replaced.
+
+**Lesson:** when a narrowing rule saves cost on a replay set, measure it again with every edge class the real tree uses resolved — a replay set of past catches cannot show the catches a blind graph loses, and the saving may be exactly those losses. Measure the leg's phases too before choosing what to cut: here the shards were a third of the wall and the confirm phase the rest.
+
+## When two critics disagree about what a format means, run the format's own reader (2026-10-29, W-c25fd20f)
+
+**What happened:** the two design critiques of the decision-ledger checker disagreed about where a markdown table ends. Opus said a tab-indented row stays in the table, so ending the body there would red the rows below it as strays. Fable said that line ends the table. Folding Opus's reading into the draft had already flipped one grader. Rendering eight edge cases with markdown-it (GFM tables, in the repo's venv) settled it in one run: a tab or 4-space line ends the table, a row with no leading pipe continues it, and a 1-space-indented row above the table is no table row to the renderer (the checker now reports it as a stray). The review then found the rule still incomplete — a heading, quote, list item, fence or HTML block also ends the table — and settled that the same way, over 39 shapes. Separately, the tie-break reason in the docstring ("the ledger appends at its foot") was false for the hub, which writes new rows on top. A measurement kept the rule: the ledger table closes its file in each of the 293 ledgers that hold one.
+
+**Lesson:** when a check's verdict depends on what a format MEANS, the oracle is that format's real parser, run on the disputed inputs, never either reviewer's reading. Fold a critique concern only after that run. And a rule's stated REASON is a claim of its own: re-measure it even when the rule survives.
+
+## A parser for hand-written markdown is proven on the live corpus, not on the spec (2026-10-29, W-d6ebcc04)
+
+**What happened:** the lessons reader's design parsed fenced code the CommonMark way, so a fence closes only on a bare closer. Run against all 84 live files, the parser left 27 of them inside an open fence at end of file. The legacy scaffold template's seventh fence line opens a block that nothing closes, so 171 real lesson headings sat inside "code". A lesson appended there, which is the normal place to add one, would never have reached kaizen, and nothing would have said so. Both design critics found the same fault from the same probe, and so did the author's own seed run.
+
+The first fix treated an opener still open at end of file as text. The review then showed that the stray also paired with the first bare fence of a lesson appended later. That hid the lesson, and in one case made the lesson's shell comment the row that was sent. A stray opener cannot be told apart from a real one by position. The rule that held was to fence only blocks whose opener has a language tag. Over the 84 files it shows 199 hidden headings and hides none the strict rule showed; one of the 199 is a code comment.
+
+**Lesson:** before relying on a parser for a human-written format, run it over every live file and count what it drops per file against a naive count, and test the fix against content appended AFTER the malformed part, not just the file as it is today. The spec's behaviour on a malformed input is often the dangerous one: here it failed silently, while reading a bare fence as text costs one noise row in the whole corpus. Pick the fail direction on purpose, and grade it with a mutant that brings the strict rule back.
+
 ## Measure the bytes per class before choosing which rule to loosen (2026-10-29, W-d1a4a8f5)
 
 **What happened:** the janitor item named a session-level class first: 362 "unclassified" sessions with no live or death signal. The first design loosened two session rules for it, a 48 h dead bar and "no transcript is a death signal". A test the build would have broken pinned the 7 d bar for weekly-quota resumes. A `du` per dry-run row then showed that the no-signal class held 0.5 GB. The 108 GB under that label sat in resumable sessions, and the removable bytes (77 GB) were run folders that a gap rule with no end kept alive. That gap rule was the one D-878 had declared safe because "/tmp is cleared at boot", and 74 of 652 session dirs predated the boot.
@@ -27,6 +95,19 @@
 
 **What happened:** T02's blocking probe launched one claude on a private tmux server to prove the `--settings` suppression. It took four launches: `capture-pane -t =probe-1` fails on tmux 3.4 ("can't find pane"), and a 60 s wait found no transcript, because a fresh worktree's first turn spends about 57 s in SessionStart hooks.
 **Lesson:** target tmux panes as `=<session>:`, never a bare `=<session>`; a probe that waits for a new session's transcript waits 150 s, not 60. The wave's review then found that a validation moved "before the first side effect" also has to stay off paths that make no side effect at all: decide where a refusal belongs by which paths build the thing it guards.
+## Close the rare side of a classifier, never the common one (2026-10-29, W-960d68a8)
+
+**What happened:** the heartbeat sorts curl's exit code into "local fault" and "network failure", and the two sides send the Windows watchdog opposite ways: one toasts, the other restarts the WSL adapter. Review round 1 fixed a misread by listing the network codes and calling everything else local. Round 2 then showed real outages producing unlisted codes (18 for a body cut short, 1 for a middlebox's non-HTTP answer, 8 for a bad header), each read as "local fault", so the watchdog would pause through a real outage.
+
+**Lesson:** when a classifier's two answers lead to different actions, write out the side whose members you can name completely (here the handful of codes a fixed `http://` GET can fail with locally), and let the open-ended side be the default. Then mutate every executable member across the line, one at a time, and check that a grader goes red for each.
+
+
+## A unit's name is not the unit that serves the port (2026-10-29, W-07298e38)
+
+**What happened:** the emitter guard mapped fabrik-citation-verifier to `fabrik-citation-verifier-mcp.service`, an enabled unit with the right name that stays inactive, because `fabrik-mcp-http.service` owns :8033 (`docs/workstation/MCP_HTTP_TRANSPORT.md` says so). Two Opus + Fable critiques and six review seats read past it; the guard passed because the look-alike was enabled. Deleting the look-alike would have withheld a live server from every repo.
+
+**Lesson:** before a test pins a service-to-unit mapping, read the live listener (`ss -ltnp` on the port, then `systemctl show -p MainPID <unit>`). A matching name and an enabled link prove nothing about which unit serves the port.
+
 ## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
 
 **What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".
@@ -8147,3 +8228,97 @@ document.
 **What happened:** W-a12b03a2 planned to reuse rotate_session's `_dialog` ("already tested") to spot builder panes waiting on a dialog. Its fixtures were three hand-written lines (`Allow?\n❯ 1. Yes\n  2. No`). One critique seat argued that real dialogs are bordered; neither seat could open one. A throwaway Haiku session in a scratch tmux session showed the real shapes on Claude Code v2.1.312: no dialog is bordered, but `_dialog` misses two of the three — the workspace-trust prompt (its options are not numbered) and an AskUserQuestion whose wrapped option descriptions put the next option four rows away.
 **Why:** a parser of another program's screen is only as good as the screens its fixtures came from; hand-written fixtures encode the author's memory of the UI, and every reviewer reading them inherits that memory.
 **How to apply:** before relying on a screen parser, produce the real screen it parses in a disposable session (your own scratch tmux session; never a live agent's pane) and run the parser on it; keep the captures out of the repo — another session's screen is not yours to commit — and write fixtures that reproduce the measured row shapes.
+
+## No `pytest_collection_modifyitems` impl is "last" (2026-10-29, W-c80361e4)
+
+**What happened:** the merge leg's ordered-run cut was first a `trylast` `pytest_collection_modifyitems`, then a
+`wrapper=True, trylast=True` one; each read a polluted red green under a conftest that reordered items later (the
+design critique caught the first form, review pass 1 the second).
+**Why:** pluggy runs a later-registered trylast impl AFTER an earlier one, and a wrapper that reorders after `yield`
+runs after every impl inside it — no form of that hook is guaranteed to see the final order.
+**How to apply:** act on the final item order in `pytest_collection_finish`, which runs after every modifyitems impl,
+and grade it against a conftest reorder in each hook form (plain trylast, wrapper, tryfirst wrapper).
+
+## A residue measured against the wrong boundary nearly shipped a costly fix — measure against the event that judges it (2026-10-29)
+
+**What happened:** W-573ddaa1's census counted `PANEL APPROVED` briefs sitting more than 2 MB before their turn's end (39 of 155) as briefs the Stop hook's 2 MB tail never reads, and a whole-file re-walk was built for them. A brief is judged at the NEXT Stop, not at the operator's next prompt; measured that way (`stop_hook_summary` rows), 154 of 155 had been read and only 1 had not. Replayed on the real long turns, the re-walk re-judged briefs earlier Stops had already judged, newly refused 3 of them and cost up to 6.9 s per Stop, so it was dropped.
+**Why:** "turn end" was a proxy for "the Stop that reads it"; in long autonomous turns Stops happen far more often than operator prompts, so the proxy inflated the count 39-fold.
+**How to apply:** before sizing a fix for a "never read" or "never judged" gap, find the event that does the reading (here the Stop's own summary row) and measure the distance to it; replay the candidate fix on the real cases, comparing base and build verdicts, before trusting it.
+
+## A warn-on-re-up split must name the verb the operator actually runs — grep its callers first (2026-10-29)
+
+**What happened:** W-43c850b1's first design refused a missing `cpus` on install and only warned on `restart()` and the non-git redeploy, to spare "the incident verb". Both critique seats grepped the callers: `restart()` has none outside tests, and `fabrik redeploy` routes by whether `/opt/<app>/.git` exists, so the git branch (which still refused) is what an operator runs for a git app. A recreate also drops a cap set by `docker update --cpus`, so the warn path protected almost nothing while leaving the only real cap holder unenforced. The design became a uniform refusal (D-1352).
+**Why:** a carve-out justified by an operational path is only as true as that path's wiring; the design reasoned from the method name, not from its callers.
+**How to apply:** before softening a guard for "the path the operator uses in an incident", grep that method's production callers and read the CLI verb's routing; a carve-out for a path nothing calls is dead weight with a real cost.
+
+## A per-element flag dies with the element: a rebuilt loop needs a per-run set (2026-10-30, W-1fb11ec8)
+
+**What happened:** `merge --queue` marked a forked leg `leg_done` on its chain element, but every landing rebuilds the
+chain with new elements, so a request whose queue leg failed was forked again after each landing (three legs for one
+request, executed by the Opus design critique). The first fix, a per-run `tried` set, then hung the queue: the
+ready-to-land test still waited for a leg the fork loop now refused to start.
+**Why:** a guard keyed on an object the loop recreates holds for one pass only, and a new skip in a fork loop is a
+new state the loop's EXIT condition must also accept.
+**How to apply:** key "once per run" on the identity a rebuild keeps (the request head plus its stacked tree, so a
+request re-stacked onto a changed base earns a fresh leg), and for every skip added to a
+producer loop, add the same arm to the consumer's ready test — then run the suite under a timeout, which is what
+caught the hang here.
+
+## An approved plan that predates the lean ledgers must be probe-run under them before its edit (2026-10-30, W-4a03df79)
+
+**What happened:** plan-1 (approved D-1122) rewords ban clauses (`only`, `never`) in five deploy-chain commands. The
+lean ledgers, which landed after the approval, hold those clauses verbatim and have no branch path for a reworded
+ban line: `narrative`, `rule:` and `superseded:` all refuse it before merge. The operator's kit was ready before
+anyone ran `command_rules.losses()` over the edited tree, so the run parked for a panel and a D-row re-cut (D-1371).
+**Why:** a plan's approval freezes its WORDING; a ledger added after it freezes the OLD wording; the two meet only
+when the edit runs.
+**How to apply:** before an approved plan's edit runs on a ledgered command, apply it in a throwaway worktree and run
+`command_rules.losses()` plus `tests/test_command_rules.py` there. Every LOSS is either reworded around a ban span
+that survives, or re-cut under one named D-row. A D-row cite in command text also adds a ceiling READ
+(`commands/_size_ceiling.json` `added:`).
+
+## Committing from a script into a shared checkout: let git move the index and the ref together (2026-10-30, W-5568be8d)
+
+**What happened:** the first design for the kaizen collector's self-commit used the CLAUDE.md private-index recipe
+(read-tree, hash-object, commit-tree, a CAS `update-ref`, then `git reset -- <paths>` to realign the shared index).
+Both critique seats executed it in a scratch repo: when any peer holds `index.lock` at the realign (a plain
+`git status` takes it), the reset fails, the shared index keeps the OLD blob under the NEW HEAD, and the owner's next
+ordinary `git commit` silently reverts the generator's commit; the generator's own index==HEAD guard then blocks
+every later run, so nothing heals it.
+**Why:** the recipe is safe for an agent who checks each step by hand; an unattended script cannot recover from a
+failure between moving the ref and moving the index.
+**How to apply:** an unattended writer commits with `git commit --only -- <paths>` (a pathspec commit implies
+`--only`), which updates the index entry and the branch ref under one `index.lock` and lands nothing on failure; it
+judges eligibility (the file was clean at HEAD before its write) against HEAD at commit time, and names, rather than
+prevents, a write landing in the milliseconds before the commit.
+
+## A script that installs an EXIT trap owns the only one — compose, never add a second (2026-10-31, W-df2e24ed)
+
+bash keeps ONE EXIT trap: a flag-scoped `trap … EXIT` set at parse time is silently replaced by any function's own trap and removed by its `trap - EXIT`, exactly on the failure paths it was meant to report (agents_up.sh start_grid :1055/:1108). Make one handler and let callers flip state variables. And `script -qfec` as a fake pty is not free: with stdin at EOF it forwards ^D into the attached pane and pins the client at 80x24 — both critique seats executed it before any code existed.
+
+## A replay of past red causes measures recall on those causes only: diff a narrowing against real readers (2026-10-31, W-fbd1d4b9)
+The merge leg's stem keys were narrowed to whole words, and the D-1189 replay of 17 red-causing merges stayed 17/17.
+Both design critiques still found a real reader the rule dropped: tests/test_merge_request_pretest.py reaches
+merge_request.py only through `from test_merge_request_merge import World`. None of the 17 causes touched that script.
+**Why:** a replay can only show a miss on a cause it holds; the measurement scripts compared counts, not who left.
+**How to apply:** before narrowing a selector, list every (changed path, test) pair the new rule DROPS over recent
+merges' own trees and read the drops that are not noise; ship the rule for the reader class you find with it.
+
+## A wait added inside a step moves every wall above it (2026-10-31, W-fbd1d4b9)
+Box-wide admission let a merge leg wait for room before it ran, and moved the leg's own deadline by the wait. Both
+design critiques found the walls ABOVE the leg had not moved: the landing worst case, the queue wall and the documented
+wrappers would have killed a landing mid-push.
+**Why:** a deadline extension is local; every bound computed from the old worst case is not.
+**How to apply:** when a change adds time inside a bounded step, grep every constant and wrapper derived from that
+step's worst case and move them in the same change, with one allowance per invocation so the growth is counted once.
+
+## A "load flake" is usually suite time or a live resource (2026-10-31, W-a9b3bc15)
+D-1398's census recorded three tests as load flakes: red under a busy box, green alone. None was load alone. One
+aged files from a clock captured at import, so it broke once the suite ran 20+ minutes past collection; one ran its
+helper from the hub checkout and scanned the live tree against a 30 s timeout; one compared two live gate runs that
+differ whenever a check times out in one.
+**Why:** "passes alone" also means "runs right after its import" and "runs while the live tree is small and idle";
+both read as load from outside.
+**How to apply:** before recording a flake, prove its time coupling with REAL elapsed time (shorten the window by its
+env knob, sleep after collection) and profile the slow call; patching `time.time` lies when the code bound the
+function at import (`field(default_factory=time.time)`).

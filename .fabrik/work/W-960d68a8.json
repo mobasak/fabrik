@@ -3,7 +3,7 @@
   "created": "2026-10-29T15:18:11.378933Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d286538f5ba1442f83a8f1cb93617f5f05966594",
   "id": "W-960d68a8",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "HIGH: removes the cause of the operator's daily WSL hang; effort low: one timer",
-  "status": "open",
+  "status": "done",
   "title": "WSL heartbeat timer (infra-2 root cause of W-97557e65/W-1d9ba411, 2026-10-29): the hotel-wifi watchdog's wsl.exe curl probe leaks ~1 root /init relay per 7 runs (each pins a 512 KB hv_sock ring → order-7 failures → wsl.exe hang). Build a user systemd timer, every 60 s: curl -sf -m 5 -o /dev/null http://www.msftconnecttest.com/connecttest.txt && touch /mnt/c/Users/user/hotel-wifi/wsl-net-ok, so the operator's ps1 reads the heartbeat's age instead of launching wsl.exe. New mechanism → /fabrik-task."
 }

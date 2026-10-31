@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:06.714294Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0f1e7fde",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M53C17AKMZ94H9FJ7MW7QZHR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-task feedback asking for code: four rows routed to infra (commit-sha capture by subject, handoff-seed resume, transcript-size block, claim owner from master)"
+}

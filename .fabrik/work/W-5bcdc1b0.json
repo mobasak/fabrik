@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:24.753584Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5bcdc1b0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M59WTW36975YWQS9G63AAAZ7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "scripts/work.py --help crashes — ValueError from a bare `%O` in the merge-driver verb's argparse help"
+}

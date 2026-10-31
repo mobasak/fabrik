@@ -10,10 +10,19 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 CHECK = ROOT / "scripts" / "enforcement" / "check_mutation.py"
 sys.path.insert(0, str(ROOT))
 import scripts.enforcement.check_mutation as cm  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_live_pause_probe(monkeypatch, tmp_path):
+    # The runner now asks `hibernate.py paused` (T03a); these tests fake subprocess.run wholesale, so a
+    # real probe would read the fake's returncode. A missing script is the fail-open path: proceed.
+    monkeypatch.setenv("FABRIK_HIBERNATE_PY", str(tmp_path / "absent-hibernate.py"))
 
 
 def test_parse_survivors_reports_a_surviving_mutant():

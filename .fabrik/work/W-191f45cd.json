@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:51.351532Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-191f45cd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5PF41GWDWCW1GV0GYGV415W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Three code copies still recommend `git pull --rebase=merges`, which drops already-pushed commits after a remote force-rewrite (W-a312d48c, D-1178)"
+}

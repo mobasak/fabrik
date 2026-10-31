@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:04:31.570160Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-5e7ca0aa",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M690XK7QFGK56PGW3FD667X2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "fleet: W-05004b41 already fixed (closed) — next pick?"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:55.959754Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-47b5c211",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5PJS29Z2JFN3JM72J4T9Q4J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the Stop hook's autonomy ladder (the feedback rung, and the mail rung before it) blocks a turn end three times to send the window into a NEW item while that window's own ROTATE-DUE line has fired, which forbids starting a new item (D-1119, CLAUDE.md § Pointers, Session history: \"once a rotatio"
+}

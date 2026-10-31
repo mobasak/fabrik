@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -95,6 +96,9 @@ class World:
             "SYNC_ARGV",
             [sys.executable, "-c", f"open({str(self.sync_marker)!r}, 'a').write('x')"],
         )
+        # runners start bare here: a real scope would outlive the test (W-73d00b05's own graders
+        # clear this pin)
+        monkeypatch.setattr(self.mod, "_SCOPE", {"ok": False}, raising=False)
         self.remote = tmp / "remote.git"
         _git(tmp, "init", "-q", "--bare", "-b", "master", str(self.remote))
         self.main = tmp / "proj"
@@ -672,22 +676,497 @@ def test_a_resolved_ledger_conflict_commits_the_request_message_without_git_comm
     assert not [ln for ln in body.splitlines() if ln.startswith("#")], body
 
 
-# --- (g): the hub's governance sync runs when a merged path matches the filter -------------
-def test_the_hub_sync_runs_when_a_merged_path_matches_the_filter(world, monkeypatch):
-    world.write(
-        ".pre-commit-config.yaml",
-        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n"
-        "        files: '(^scripts/mail\\.py$|^templates/governance/)'\n"
-        "      - id: other\n        files: '^x'\n",
-    )
+# --- (g): the hub's governance sync runs OUTSIDE the merge lock (W-4f4ac600) ---------------
+_SYNC_CONFIG = (
+    "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n"
+    "        files: '(^scripts/mail\\.py$|^templates/governance/)'\n"
+    "      - id: other\n        files: '^x'\n"
+)
+
+
+def _hub(world, monkeypatch) -> Path:
+    """Make the scratch checkout the hub, with a governance-sync filter; returns the state dir."""
+    world.write(".pre-commit-config.yaml", _SYNC_CONFIG)
     world.commit_main("hooks", ".pre-commit-config.yaml")
     monkeypatch.setattr(world.mod, "HUB_CHECKOUT", world.main)
-    head = world.branch({"scripts/mail.py": "# mail\n"})
-    msg_id = world.send(head)
+    return world.main / ".git" / "fabrik-merge"
+
+
+def _fake_sync(world, monkeypatch, body: str) -> None:
+    """SYNC_ARGV runs ``body`` (Python) with ``marker`` and ``state`` bound."""
+    code = (
+        "import fcntl, os, pathlib, sys, time\n"
+        f"marker = pathlib.Path({str(world.sync_marker)!r})\n"
+        f"state = pathlib.Path({str(world.main / '.git' / 'fabrik-merge')!r})\n" + body
+    )
+    monkeypatch.setattr(world.mod, "SYNC_ARGV", [sys.executable, "-c", code])
+
+
+def _sync_landing(world, text: str = "# mail\n") -> str:
+    """A request whose merge touches a governance-sync path."""
+    return world.send(world.branch({"scripts/mail.py": text}))
+
+
+def test_the_hub_sync_runs_when_a_merged_path_matches_the_filter(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    msg_id = _sync_landing(world)
 
     assert world.run("merge") == 0
     assert world.sync_marker.read_text() == "x"
-    assert "sync: ran for 1" in world.replies(msg_id)["fleet"]
+    reply = world.replies(msg_id)["fleet"]
+    assert "sync: owed for 1 governance-sync path(s) — runs outside the merge lock" in reply
+    assert "sync: ran" in capsys.readouterr().err
+    owed = (state / "sync-owed.log").stat().st_size
+    assert owed > 0
+    assert int((state / "sync-done").read_text()) == owed
+
+
+def test_the_sync_runs_outside_the_merge_lock(world, monkeypatch):
+    _hub(world, monkeypatch)
+    _fake_sync(
+        world,
+        monkeypatch,
+        "fd = os.open(state.parent / 'fabrik-merge.lock', os.O_RDWR | os.O_CREAT)\n"
+        "end = time.monotonic() + 60\n"
+        "got = 'held'\n"
+        "while time.monotonic() < end:\n"
+        "    try:\n"
+        "        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
+        "        got = 'free'\n"
+        "        break\n"
+        "    except BlockingIOError:\n"
+        "        time.sleep(0.1)\n"
+        "marker.write_text(got)\n",
+    )
+    _sync_landing(world)
+
+    assert world.run("merge") == 0
+    assert world.sync_marker.read_text() == "free"
+
+
+def test_a_debt_owed_during_a_sync_is_covered_by_one_more_run(world, monkeypatch):
+    _hub(world, monkeypatch)
+    # the first sync owes once more while it runs (as a later landing would); the SAME runner's
+    # next turn covers that debt (each sync records its runner's pid — a drain rerun would be a
+    # second runner), and no third sync runs
+    _fake_sync(
+        world,
+        monkeypatch,
+        "first = not marker.exists()\n"
+        "with open(marker, 'a') as f: f.write(f'{os.getppid()}\\n')\n"
+        "if first:\n"
+        "    with open(state / 'sync-owed.log', 'a') as f: f.write('owed during the sync\\n')\n",
+    )
+    _sync_landing(world)
+
+    assert world.run("merge") == 0
+    runners = world.sync_marker.read_text().split()
+    assert len(runners) == 2, runners
+    assert runners[0] == runners[1], f"the debt was covered by a second runner: {runners}"
+
+
+def test_a_failed_sync_stays_owed_and_the_next_kick_retries_it(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    # exit 3, not 1: the runner itself exits 1 on any failed sync, so the sync's own code must
+    # still reach the line the merge owner reads
+    _fake_sync(world, monkeypatch, "print('step one'); print('boom'); sys.exit(3)\n")
+    _sync_landing(world)
+
+    assert world.run("merge") == 0  # a sync's failure never changed the merge's exit
+    err = capsys.readouterr().err
+    assert (
+        "sync: FAILED (exit 3: step one boom) — run scripts/sync_enforcement_to_projects.py --force"
+        in err
+    )
+    assert not (state / "sync-done").exists()
+
+    _fake_sync(world, monkeypatch, "marker.write_text('retried')\n")
+    msg_id = world.send(world.branch({"notes.txt": "a landing that owes no sync\n"}))
+    assert world.run("merge") == 0
+    assert world.sync_marker.read_text() == "retried"
+    assert "the last background sync FAILED (exit 3)" in world.replies(msg_id)["fleet"]
+
+
+def test_a_runner_crash_is_printed_with_its_reason_not_a_stale_status(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-status.txt").write_text('{"at": 0, "covers": 1, "rc": 0}')  # an older run's
+    (state / "sync-done").mkdir()  # writing it fails inside the runner, after a green sync
+    _sync_landing(world)
+
+    assert world.run("merge") == 0
+    err = capsys.readouterr().err
+    assert "sync: FAILED (exit 70: runner crashed: IsADirectoryError" in err
+    assert "sync: ran" not in err
+    assert not list(state.glob(".sync-done.*")), "the failed write left its temp file"
+
+
+def test_a_sync_orphaned_by_a_killed_runner_keeps_the_sync_lock(world, monkeypatch):
+    _hub(world, monkeypatch)
+    # the sync kills its runner, then asks whether the sync lock is still held — by itself
+    _fake_sync(
+        world,
+        monkeypatch,
+        "import signal\n"
+        "os.kill(os.getppid(), signal.SIGKILL)\n"
+        "time.sleep(0.5)\n"
+        "fd = os.open(state / 'sync.lock', os.O_RDWR)\n"
+        "try:\n"
+        "    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
+        "    marker.write_text('free')\n"
+        "except BlockingIOError:\n"
+        "    marker.write_text('held')\n",
+    )
+    _sync_landing(world)
+
+    assert world.run("merge") == 0
+    end = time.monotonic() + 30  # the orphan writes after its runner's drain has returned
+    while time.monotonic() < end and not (
+        world.sync_marker.exists() and world.sync_marker.read_text()
+    ):
+        time.sleep(0.1)
+    assert world.sync_marker.read_text() == "held"
+
+
+def test_a_debt_owed_after_the_runner_exits_gets_one_more_runner(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed after the runner's last check\n")
+    _fake_sync(world, monkeypatch, "marker.write_text('x')\n")
+    done = subprocess.Popen([sys.executable, "-c", "pass"])  # a runner that exited 0, debt open
+    world.mod._SYNC_RUN.update(proc=done, state=state, main=world.main)
+
+    world.mod._drain_sync()
+    assert world.sync_marker.read_text() == "x"
+    err = capsys.readouterr().err
+    assert "sync: ran" in err
+    assert "FAILED" not in err
+
+
+def test_a_sync_that_cannot_be_owed_is_reported_and_the_landing_still_replies(world, monkeypatch):
+    state = _hub(world, monkeypatch)
+    (state / "sync-owed.log").mkdir(parents=True)  # the owed line cannot be written
+    msg_id = _sync_landing(world)
+
+    assert world.run("merge") == 0
+    reply = world.replies(msg_id)["fleet"]
+    assert "sync: FAILED to owe or start (" in reply
+    assert "run scripts/sync_enforcement_to_projects.py --force" in reply
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="chmod 0 does not bar root's reads")
+def test_a_drain_that_cannot_read_its_state_keeps_the_exit_code(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed\n")
+    done = subprocess.Popen([sys.executable, "-c", "pass"])
+    done.wait()
+    world.mod._SYNC_RUN.update(proc=done, state=state, main=world.main)
+    state.chmod(0)
+    try:
+        assert world.run("merge") == 0  # nothing waits in the inbox: the verb's own exit is 0
+    finally:
+        state.chmod(0o755)
+    assert "merge_request: sync: unknown (" in capsys.readouterr().err
+
+
+def test_a_rerun_that_cannot_start_leads_with_failed(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed after the runner's last check\n")
+    done = subprocess.Popen([sys.executable, "-c", "pass"])  # exited 0, the debt still open
+    done.wait()
+    world.mod._SYNC_RUN.update(proc=done, state=state, main=world.main)
+
+    def no_start(*args, **kwargs):
+        raise OSError("no such exec")
+
+    monkeypatch.setattr(world.mod.subprocess, "Popen", no_start)
+    world.mod._drain_sync()
+    err = capsys.readouterr().err
+    assert err.startswith("merge_request: sync: FAILED to start (no such exec)"), err
+
+
+def test_a_refused_verb_still_drains_its_sync(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed\n")
+    (state / "sync-done").write_text(f"{(state / 'sync-owed.log').stat().st_size}\n")
+    done = subprocess.Popen([sys.executable, "-c", "pass"])  # this run's runner, covered
+    world.mod._SYNC_RUN.update(proc=done, state=state, main=world.main)
+
+    assert world.run("resume", "01NOSUCHREQUEST000000000000") == 1  # REFUSED
+    assert "merge_request: sync: ran" in capsys.readouterr().err
+
+
+def test_a_sync_past_the_drain_bound_is_reported_still_running(world, monkeypatch, capsys):
+    _hub(world, monkeypatch)
+    monkeypatch.setattr(world.mod, "SYNC_TIMEOUT_S", 1)  # the drain's bound (this process only)
+    _fake_sync(world, monkeypatch, "time.sleep(4)\nmarker.write_text('done')\n")
+    _sync_landing(world)
+
+    assert world.run("merge") == 0
+    assert "merge_request: sync: still running in the background (pid " in capsys.readouterr().err
+    end = time.monotonic() + 30  # let the runner finish inside the test
+    while time.monotonic() < end and not world.sync_marker.exists():
+        time.sleep(0.1)
+    assert world.sync_marker.read_text() == "done"
+
+
+# W-73d00b05: capped_run.sh's EXIT trap stops its scope, and a start_new_session runner is still in
+# it — so a runner alive when merge_request.py exits died with its sync. It now starts in its own
+# bounded transient scope when one can start, bare otherwise.
+_RUNNER = [sys.executable, "merge_request.py", "sync-runner", "--state", "s", "--", "sync"]
+
+
+def _probe_ran(monkeypatch, mod, result) -> list[list[str]]:
+    """Stub the scope probe's subprocess.run: ``result`` is an exit code or an exception to raise."""
+    mod._SCOPE.clear()
+    calls: list[list[str]] = []
+
+    def run(argv, **_kw):
+        calls.append(list(argv))
+        if isinstance(result, BaseException):
+            raise result
+        return subprocess.CompletedProcess(argv, result)
+
+    monkeypatch.setattr(mod.subprocess, "run", run)
+    return calls
+
+
+@pytest.mark.parametrize(
+    "result",
+    [1, OSError("no systemd-run"), subprocess.TimeoutExpired("systemd-run", 10)],
+    ids=["refused", "absent", "timeout"],
+)
+def test_the_runner_starts_bare_when_no_scope_can_start(world, monkeypatch, result):
+    calls = _probe_ran(monkeypatch, world.mod, result)
+
+    assert world.mod._runner_scope(_RUNNER, {}) == _RUNNER
+    assert world.mod._runner_scope(_RUNNER, {}) == _RUNNER
+    assert len(calls) == 2  # a failed probe is asked again: one bus blip never pins a run bare
+
+
+def test_a_green_probe_is_kept_for_the_process(world, monkeypatch):
+    calls = _probe_ran(monkeypatch, world.mod, 0)
+
+    assert world.mod._runner_scope(_RUNNER, {})[0] == "systemd-run"
+    assert world.mod._runner_scope(_RUNNER, {})[0] == "systemd-run"
+    assert len(calls) == 1
+
+
+def test_kick_sync_starts_the_runner_through_its_scope(world, monkeypatch, tmp_path):
+    """The start itself, hermetic (the capped_run grader skips where no scope can start): the
+    runner's argv goes through `_runner_scope` and the Popen gets the filled env."""
+    mod = world.mod
+    _probe_ran(monkeypatch, mod, 0)
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "sync-owed.log").write_text("owed\n")
+    seen: dict = {}
+
+    class _Proc:
+        pid = 4242
+
+        def poll(self):
+            return None
+
+    def popen(argv, **kw):
+        seen.update(argv=list(argv), env=kw.get("env"))
+        return _Proc()
+
+    monkeypatch.setattr(mod.subprocess, "Popen", popen)
+
+    assert mod._kick_sync(tmp_path, state) is None
+    argv = seen["argv"]
+    assert argv[0] == "systemd-run" and "--collect" in argv
+    assert argv[argv.index("--") + 1 :][2:4] == ["sync-runner", "--state"]
+    assert seen["env"] == mod._runner_env(dict(os.environ))
+    assert mod._SYNC_RUN["started"] > 0
+    mod._SYNC_RUN.clear()
+
+
+def test_the_runner_env_fills_xdg_runtime_dir_from_the_user_bus(world, monkeypatch):
+    mod = world.mod
+    bus = Path(f"/run/user/{os.getuid()}")
+    assert mod._runner_env({"XDG_RUNTIME_DIR": "/kept"})["XDG_RUNTIME_DIR"] == "/kept"
+    filled = mod._runner_env({"PATH": "/bin"})
+    if (bus / "bus").is_socket():
+        assert filled == {"PATH": "/bin", "XDG_RUNTIME_DIR": str(bus)}
+    else:
+        assert filled == {"PATH": "/bin"}
+
+
+def test_a_runner_that_exits_before_writing_reads_no_older_status(world, monkeypatch, capsys):
+    """A scoped start can exit 1 before the runner runs (systemd-run refused it), writing no
+    status; an older run's rc-1 status is not this one's reason."""
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed\n")
+    (state / "sync-status.txt").write_text(
+        json.dumps({"at": time.time() - 3600, "rc": 1, "sync_rc": 124, "tail": "OLD tail"})
+    )
+    failed = subprocess.Popen([sys.executable, "-c", "import sys; sys.exit(1)"])
+    world.mod._SYNC_RUN.update(proc=failed, state=state, main=world.main, started=time.time())
+
+    world.mod._drain_sync()
+    err = capsys.readouterr().err
+    assert "sync: FAILED (exit 1: the runner recorded no reason)" in err, err
+    assert "OLD tail" not in err
+
+
+def test_the_runner_starts_in_its_own_bounded_scope(world, monkeypatch):
+    mod = world.mod
+    calls = _probe_ran(monkeypatch, mod, 0)
+
+    argv = mod._runner_scope(_RUNNER, {})
+    cut = argv.index("--")
+    prefix, tail = argv[:cut], argv[cut + 1 :]
+    assert tail == _RUNNER
+    assert prefix[:4] == ["systemd-run", "--user", "--scope", "-q"]
+    for flag in (
+        "--collect",
+        "--slice=fabrik-agents.slice",
+        f"RuntimeMaxSec={mod.SYNC_RUNNER_MAX_S}",
+        f"MemoryMax={mod.SYNC_RUNNER_MEM}",
+        "MemorySwapMax=0",
+        "TimeoutStopSec=5",
+    ):
+        assert flag in prefix, (flag, prefix)
+    assert any(p.startswith("--unit=fabrik-sync-runner-") for p in prefix), prefix
+    # the probe ran the SAME flags (a property the manager refuses fails the probe, not the start)
+    (probe,) = calls
+    assert probe[probe.index("--") + 1 :] == ["true"]
+    strip = [p for p in probe[: probe.index("--")] if not p.startswith("--unit=")]
+    assert strip == [p for p in prefix if not p.startswith("--unit=")]
+    # the backstop outlasts the last sync a runner may start before its soft deadline, so a runner
+    # that retires at that deadline is never the one the backstop kills mid-sync
+    assert mod.SYNC_RUNNER_MAX_S >= mod.SYNC_RUNNER_SOFT_S + mod.SYNC_TIMEOUT_S
+    assert mod.SYNC_RUNNER_SOFT_S >= mod.QUEUE_WALL_S + mod.SYNC_LOCK_WAIT_S
+
+
+def test_a_runner_past_its_soft_deadline_runs_no_sync(world, monkeypatch, tmp_path):
+    mod = world.mod
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "sync-owed.log").write_text("owed\n")
+    marker = tmp_path / "synced-past-deadline"
+    monkeypatch.setattr(mod, "SYNC_RUNNER_SOFT_S", 0)
+
+    rc = mod._sync_runner(state, [sys.executable, "-c", f"open({str(marker)!r}, 'w')"])
+
+    assert rc == 0
+    assert not marker.exists()
+    assert not (state / "sync-done").exists()  # the debt stays owed for the next kick
+    status = json.loads((state / "sync-status.txt").read_text())
+    assert status["rc"] == 0 and "retired at its bound" in status["tail"]
+
+
+_CAPPED = SCRIPTS / "capped_run.sh"
+_KICK_AND_EXIT = """\
+import importlib.util, os, sys, pathlib
+spec = importlib.util.spec_from_file_location("mr_w73", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+state, marker = pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
+# 12 s: capped_run polls a scope still active after its command exits for up to 5 s
+# (capped_run.sh:150-155) before its EXIT trap stops it — a shorter sync finishes inside that grace
+# and the grader passes on the bare start it exists to refuse
+mod.SYNC_ARGV = [sys.executable, "-c",
+                 f"import time; time.sleep(12); open({str(marker)!r}, 'w').write('done')"]
+state.mkdir(parents=True, exist_ok=True)
+(state / "sync-owed.log").write_text("owed\\n")
+mod._kick_sync(state.parent, state)
+os._exit(0)  # exit at once, no drain: the wrapper stops its scope while the sync still sleeps
+"""
+
+
+def test_a_runner_outlives_its_merge_process_under_capped_run(world, tmp_path):
+    probe = world.mod
+    probe._SCOPE.clear()
+    if not probe._scope_ok(probe._runner_env(dict(os.environ))):
+        pytest.skip("no transient user scope can start here (capped_run then runs uncapped)")
+    child = tmp_path / "kick.py"
+    child.write_text(_KICK_AND_EXIT)
+    state, marker = tmp_path / "fabrik-merge", tmp_path / "synced-after-exit"
+
+    run = subprocess.run(
+        [
+            str(_CAPPED),
+            "--timeout",
+            "60",
+            "--",
+            sys.executable,
+            str(child),
+            str(SCRIPT),
+            str(state),
+            str(marker),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr
+    end = time.monotonic() + 45
+    while time.monotonic() < end and not marker.exists():
+        time.sleep(0.2)
+    assert marker.exists() and marker.read_text() == "done", "the runner died with its wrapper"
+    end = time.monotonic() + 15  # the runner writes sync-done after its sync
+    while time.monotonic() < end and not (state / "sync-done").exists():
+        time.sleep(0.2)
+    assert int((state / "sync-done").read_text()) == (state / "sync-owed.log").stat().st_size
+
+
+def test_a_debt_left_by_a_killed_run_runs_at_the_next_landing(world, monkeypatch):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("2026-10-30T00:59:53 left by a killed run\n")
+    world.send(world.branch({"notes.txt": "a landing that owes no sync\n"}))
+
+    assert world.run("merge") == 0
+    assert world.sync_marker.read_text() == "x"
+
+
+def test_a_runner_waits_for_a_held_sync_lock_then_runs(world, monkeypatch):
+    import threading
+
+    state = _hub(world, monkeypatch)
+    _fake_sync(world, monkeypatch, "marker.write_text('ran')\n")
+    _sync_landing(world)
+    state.mkdir(parents=True, exist_ok=True)
+    fd = os.open(state / "sync.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX)  # another process's sync holds it
+    synced_while_held: list[bool] = []
+
+    def release() -> None:
+        # hold until this landing owed its sync (or 30 s), then 2 s more: a sync that ran while
+        # the lock was held has written the marker by now
+        end = time.monotonic() + 30
+        while not (state / "sync-owed.log").exists() and time.monotonic() < end:
+            time.sleep(0.1)
+        time.sleep(2)
+        synced_while_held.append(world.sync_marker.exists())
+        os.close(fd)
+
+    t = threading.Thread(target=release)
+    t.start()
+    try:
+        assert world.run("merge") == 0
+    finally:
+        t.join()
+    assert synced_while_held == [False]
+    assert world.sync_marker.read_text() == "ran"
+
+
+def test_no_sync_is_owed_outside_the_hub(world, monkeypatch):
+    world.write(".pre-commit-config.yaml", _SYNC_CONFIG)
+    world.commit_main("hooks", ".pre-commit-config.yaml")
+    _sync_landing(world)  # HUB_CHECKOUT stays /opt/fabrik: this checkout is not the hub
+
+    assert world.run("merge") == 0
+    assert not world.sync_marker.exists()
+    assert not (world.main / ".git" / "fabrik-merge" / "sync-owed.log").exists()
 
 
 # --- (c): the owner's tests import the MERGED tree and reach ../fabrik-lib -------------------
@@ -2237,3 +2716,402 @@ def test_merge_states_that_the_gate_is_the_callers(world, capsys):
         "no touched tests/)"
     ), out
     assert f"evidence: {duty}\n" in world.replies(msg_id)["fleet"]
+
+
+# --- D-1186's relief valve: the merge lands first, the same leg runs after (W-3237ba45) -----------
+def _after_world(world, script: str, above: int = 0) -> None:
+    """A base that declares the after-merge line, and one merged record so the rate is above it."""
+    world.write(".fabrik/merge-tests", f"# merge-tests-after-merge-above: {above}\n{script}\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    rec_dir = world.main / ".git" / "fabrik-merge"
+    rec_dir.mkdir(parents=True, exist_ok=True)
+    (rec_dir / "01PRIORMERGE000000000000000.json").write_text(
+        json.dumps({"id": "01PRIORMERGE000000000000000", "outcome": "merged"}), encoding="utf-8"
+    )
+
+
+def _kicks(world) -> list:
+    kicked: list = []
+    world.mp.setattr(world.mod, "_kick_after", lambda ctx: kicked.append(ctx.main) or "")
+    return kicked
+
+
+def test_the_rate_counts_merged_records_of_the_last_seven_days(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    ctx.records.mkdir(parents=True, exist_ok=True)
+    for i, outcome in enumerate(["merged"] * 14 + ["refused"] * 5):
+        (ctx.records / f"r{i}.json").write_text(json.dumps({"outcome": outcome}))
+    old = ctx.records / "old.json"
+    old.write_text(json.dumps({"outcome": "merged"}))
+    os.utime(old, (time.time() - 8 * 86400,) * 2)
+    assert world.mod._merge_rate(ctx) == 2.0  # 14 merged in the window, the refused and the old not
+
+
+def test_above_the_declared_rate_the_merge_lands_without_its_leg_and_owes_it(world):
+    counter = world.tmp / "test-runs"
+    _after_world(world, f"python3 -c \"open({str(counter)!r}, 'a').write('x')\"")
+    kicked = _kicks(world)
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    assert not counter.exists()  # no leg before the CAS
+    rec = world.record(msg_id)
+    assert rec["outcome"] == "merged" and rec["tests_after_merge"] and rec["after_merge_owed"]
+    assert any("deferred to the after-merge run (D-1186" in e for e in rec["evidence"])
+    owed = (world.main / ".git" / "fabrik-merge" / "after-merge" / "owed.jsonl").read_text()
+    entry = json.loads(owed.splitlines()[-1])
+    assert entry["id"] == msg_id and entry["merge_sha"] == rec["merge_sha"]
+    assert entry["requester"] == "fleet" and kicked == [world.main]
+    assert "after-merge: owed" in world.replies(msg_id)["fleet"]
+
+
+def test_at_or_below_the_declared_rate_the_leg_runs_before_the_cas(world):
+    counter = world.tmp / "test-runs"
+    _after_world(world, f"python3 -c \"open({str(counter)!r}, 'a').write('x')\"", above=5)
+    kicked = _kicks(world)
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    assert counter.read_text() == "x" and kicked == []
+    assert "tests_after_merge" not in world.record(msg_id)
+
+
+def test_a_pretest_never_defers(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    ctx.pretesting = True
+    assert world.mod._after_merge_due(ctx, "# merge-tests-after-merge-above: 0\ntrue\n") == ""
+
+
+# the runner's leg stands in for merge_test_select: it records a red id against the base it was given
+_RED_LEG = (
+    'printf "tests/test_x.py::test_a\\tcall\\n" > '
+    '"$FABRIK_MERGE_TESTS_RECORDS/merge-tests-$FABRIK_MERGE_TESTS_BASE.txt"; exit 1'
+)
+
+
+def _land_two(world, script: str) -> list[dict]:
+    _after_world(world, script)
+    _kicks(world)
+    ids = []
+    for name in ("a.txt", "b.txt"):
+        ids.append(world.send(world.branch({name: "x\n"}, msg=name)))
+        assert world.run("merge") == 0
+    return [world.record(i) for i in ids]
+
+
+def test_the_runner_tests_every_owed_merge_in_one_green_leg(world):
+    marker = world.tmp / "leg-ran"
+    recs = _land_two(
+        world, f'echo "$FABRIK_MERGE_TESTS_BASE" >> {marker}; git rev-parse HEAD >> {marker}'
+    )
+    assert world.mod._after_merge_runner(world.main) == 0
+    base, head = marker.read_text().split()
+    assert base == recs[0]["old_base"] and head == recs[1]["merge_sha"]  # one leg over both
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    assert set((d / "done.txt").read_text().split()) == {r["id"] for r in recs}
+    assert (d / "tested.txt").read_text().strip() == recs[1]["merge_sha"]
+    assert json.loads((d / "status.json").read_text())["rc"] == 0
+    assert world.mod._after_merge_runner(world.main) == 0
+    assert len(marker.read_text().split()) == 2  # nothing owed: no second leg
+
+
+def test_a_red_files_a_p0_on_the_author_and_blocks_their_next_request(world):
+    recs = _land_two(world, _RED_LEG)
+    world.mp.setattr(world.mod, "_after_cause", lambda ctx, todo, ids, env: todo[0])
+    assert world.mod._after_merge_runner(world.main) == 0
+    status = json.loads(
+        (world.main / ".git" / "fabrik-merge" / "after-merge" / "status.json").read_text()
+    )
+    assert status["rc"] == 1 and status["red"] == ["tests/test_x.py::test_a"]
+    assert status["cause"] == recs[0]["id"]
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"  # a red is covered, filed and passed
+    assert set((d / "done.txt").read_text().split()) == {r["id"] for r in recs}
+    assert (d / "tested.txt").read_text().strip() == recs[1]["merge_sha"]
+    item = json.loads((world.main / ".fabrik" / "work" / f"{status['item']}.json").read_text())
+    assert item["priority"] == 0 and "after-merge-red" in item["tags"]
+    assert "by-fleet" in item["tags"] and recs[0]["merge_sha"][:12] in item["title"]
+    # the author's next request is refused until it carries the item
+    blocked = world.send(world.branch({"c.txt": "x\n"}, msg="c"))
+    assert world.run("merge") == 1
+    assert status["item"] in world.record(blocked)["reason"]
+    fix = world.send(world.branch({"d.txt": "x\n"}, msg="d"), item=status["item"])
+    assert world.run("merge") == 0, world.record(fix).get("reason")
+
+
+def test_a_leg_without_a_verdict_stays_owed(world):
+    recs = _land_two(world, "exit 3")
+    assert world.mod._after_merge_runner(world.main) == 1
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    assert not (d / "done.txt").exists()
+    assert json.loads((d / "status.json").read_text())["covers"] == [r["id"] for r in recs]
+
+
+def test_a_second_runner_exits_while_one_holds_the_lock(world):
+    """With merges owed, a runner that cannot take runner.lock runs no leg (review r1 C-1)."""
+    marker = world.tmp / "leg-ran"
+    _land_two(world, f"echo x >> {marker}")
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    fd = os.open(d / "runner.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    try:
+        assert world.mod._after_merge_runner(world.main) == 0
+    finally:
+        os.close(fd)
+    assert not marker.exists() and not (d / "done.txt").exists()
+
+
+def test_a_normal_merge_leg_never_inherits_an_after_merge_base(world):
+    """FABRIK_MERGE_TESTS_BASE reaches a leg only from the after-merge runner: one left in the merge
+    owner's shell would move a normal merge's base and shrink its selection (review r1 B-1)."""
+    seen = world.tmp / "base-seen"
+    world.write(".fabrik/merge-tests", f'printf "%s" "$FABRIK_MERGE_TESTS_BASE" > {seen}\n')
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    world.mp.setenv("FABRIK_MERGE_TESTS_BASE", "f" * 40)
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    assert seen.read_text() == "" and world.record(msg_id)["outcome"] == "merged"
+
+
+def test_a_red_whose_p0_cannot_be_filed_stays_owed(world):
+    """An unfiled red would read pre-existing once tested.txt moved past it (review r1, slice B note)."""
+    recs = _land_two(world, _RED_LEG)
+    world.mp.setattr(world.mod, "_after_cause", lambda ctx, todo, ids, env: todo[0])
+    world.mp.setattr(world.mod, "_file_after_red", lambda *a: "")
+    assert world.mod._after_merge_runner(world.main) == 1
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    assert not (d / "done.txt").exists() and not (d / "tested.txt").exists()
+    status = json.loads((d / "status.json").read_text())
+    assert status["rc"] == 2 and status["covers"] == [r["id"] for r in recs]
+
+
+def test_a_rebuild_that_runs_its_leg_owes_no_after_merge_run(world):
+    """The deferral is decided per build attempt (review r1 A-8): attempt 1 deferred, the base moved,
+    attempt 2 ran its leg — the merge owes nothing."""
+    counter = world.tmp / "test-runs"
+    _after_world(world, f"python3 -c \"open({str(counter)!r}, 'a').write('x')\"")
+    kicked = _kicks(world)
+    real = world.mod._after_merge_due
+    answers = iter([True, False])
+    world.mp.setattr(
+        world.mod, "_after_merge_due", lambda c, s: real(c, s) if next(answers) else ""
+    )
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    calls: list[str] = []
+
+    def phase(name):
+        if name == "after-build":
+            calls.append(name)
+            if len(calls) == 1:
+                world.write("bump.txt", "bump\n")
+                world.commit_main("pipeline commit", "bump.txt")
+
+    assert world.run("merge", phase=phase) == 0
+    rec = world.record(msg_id)
+    assert len(calls) == 2 and counter.read_text() == "x" and kicked == []
+    assert "tests_after_merge" not in rec and "after_merge_owed" not in rec
+
+
+def test_the_pre_cas_record_carries_the_deferral(world):
+    """A crash between the CAS and the post-CAS save still owes the after-merge run on resume (A-7)."""
+    _after_world(world, "true")
+    _kicks(world)
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    seen: dict = {}
+
+    def phase(name):
+        if name == "before-cas":
+            seen.update(world.record(msg_id))
+
+    assert world.run("merge", phase=phase) == 0
+    assert seen["phase"] == "built" and seen["tests_after_merge"] is True
+
+
+def test_a_catch_up_never_defers(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    ctx.records.mkdir(parents=True, exist_ok=True)
+    (ctx.records / "r.json").write_text(json.dumps({"outcome": "merged"}))
+    script = "# merge-tests-after-merge-above: 0\ntrue\n"
+    assert world.mod._after_merge_due(ctx, script)
+    ctx.catching_up = True
+    assert world.mod._after_merge_due(ctx, script) == ""
+
+
+def test_an_author_with_a_32_character_name_is_still_blocked(world):
+    """`by-` + a 32-character agent name is past the store's tag rule; the block reads the title (A-1)."""
+    name = "a" * 32
+    store = world.main / ".fabrik" / "work"
+    item = {
+        "id": "W-0000beef",
+        "status": "open",
+        "tags": ["after-merge-red"],
+        "title": f"after-merge red: merge {'c' * 12} by {name} (request X, branch b) turned t red",
+    }
+    (store / "W-0000beef.json").write_text(json.dumps(item))
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    with pytest.raises(world.mod.RefusedError, match="W-0000beef"):
+        world.mod._after_merge_block(ctx, {"requester": name, "item": "none"})
+    world.mod._after_merge_block(ctx, {"requester": name, "item": "W-0000beef"})  # the fix passes
+    world.mod._after_merge_block(ctx, {"requester": "someone-else", "item": "none"})
+    item["status"] = "done"
+    (store / "W-0000beef.json").write_text(json.dumps(item))
+    world.mod._after_merge_block(ctx, {"requester": name, "item": "none"})
+
+
+def test_a_merge_owed_while_the_runner_exits_gets_a_successor(world):
+    """The runner re-reads the owed list after releasing its lock (A-5): one owed during its leg is
+    handed to a successor, never left for the next merge's kick."""
+    recs = _land_two(world, "true")
+    kicked: list = []
+    world.mp.setattr(world.mod, "_kick_after", lambda ctx: kicked.append(1) or "")
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    real = world.mod._after_merge_leg
+
+    def leg(ctx, dd):
+        rc = real(ctx, dd)
+        with open(dd / "owed.jsonl", "a") as fh:  # a merge lands while this runner finishes
+            fh.write(json.dumps({**recs[1], "id": "LATE", "old_base": recs[1]["merge_sha"]}) + "\n")
+        return rc
+
+    world.mp.setattr(world.mod, "_after_merge_leg", leg)
+    assert world.mod._after_merge_runner(world.main) == 0
+    assert kicked == [1] and "LATE" not in (d / "done.txt").read_text()
+
+
+def test_a_dead_runners_throwaway_is_swept_by_the_next_runner(world):
+    """A runner killed mid-leg leaves a registered throwaway and its run record (A-4)."""
+    runs = world.main / ".git" / "fabrik-merge" / "after-merge" / "runs"
+    runs.mkdir(parents=True)
+    parent = Path(tempfile.mkdtemp(prefix="fabrik-pretest-"))
+    wt = parent / world.main.name
+    _git(world.main, "worktree", "add", "--detach", "-q", str(wt), "HEAD")
+    rec = {"id": "after-x.run-1", "worktree": str(wt), "pid": _dead_pid(), "start": "1"}
+    (runs / "after-x.run-1.json").write_text(json.dumps(rec))
+    assert world.mod._after_merge_runner(world.main) == 0  # nothing owed: the sweep still ran
+    assert not wt.exists() and not (runs / "after-x.run-1.json").exists()
+    assert str(wt) not in _git(world.main, "worktree", "list")
+
+
+def test_the_cause_is_the_first_owed_merge_where_the_red_fails_alone(world):
+    """`_after_cause` runs the red ids at each owed merge in landing order (review r1 C-2)."""
+    _after_world(world, "true")
+    _kicks(world)
+    red = "def test_a():\n    assert False\n"
+    ids = [world.send(world.branch({"tests/test_x.py": red}, msg="adds a red"))]
+    assert world.run("merge") == 0
+    ids.append(world.send(world.branch({"b.txt": "x\n"}, msg="b")))
+    assert world.run("merge") == 0
+    recs = [world.record(i) for i in ids]
+    todo = [{"id": r["id"], "merge_sha": r["merge_sha"]} for r in reversed(recs)]  # newest first
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "")
+    cause = world.mod._after_cause(ctx, todo[::-1], ["tests/test_x.py::test_a"], dict(os.environ))
+    assert cause["id"] == recs[0]["id"]
+    # an id that passes everywhere names no merge: the newest owed one is named
+    ok = world.mod._after_cause(ctx, todo[::-1], ["tests/test_x.py::nope"], dict(os.environ))
+    assert ok["id"] == recs[1]["id"]
+    assert "fabrik-pretest-" not in _git(world.main, "worktree", "list")  # its throwaway is gone
+
+
+def test_the_next_batch_is_tested_against_the_last_tested_tip(world):
+    """tested.txt is the next leg's base: one leg covers everything landed since (review r1 C-3)."""
+    marker = world.tmp / "leg-ran"
+    recs = _land_two(world, f'echo "$FABRIK_MERGE_TESTS_BASE" >> {marker}')
+    assert world.mod._after_merge_runner(world.main) == 0
+    world.write("direct.txt", "x\n")  # lands un-owed: the next merge's own base is past the tip
+    world.commit_main("a direct commit", "direct.txt")
+    _git(world.main, "push", "-q", "origin", "master")
+    late = world.send(world.branch({"c.txt": "x\n"}, msg="c"))
+    assert world.run("merge") == 0
+    assert world.record(late)["old_base"] != recs[1]["merge_sha"]
+    assert world.mod._after_merge_runner(world.main) == 0
+    assert marker.read_text().split() == [recs[0]["old_base"], recs[1]["merge_sha"]]
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    assert (d / "tested.txt").read_text().strip() == world.record(late)["merge_sha"]
+
+
+def test_the_rate_must_pass_the_line_and_a_pretest_record_wins(world, monkeypatch):
+    """At the line nothing defers; above it, a matching pretest record still runs before the
+    deferral is read (review r1 C-4)."""
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    ctx.records.mkdir(parents=True, exist_ok=True)
+    for i in range(7):
+        (ctx.records / f"r{i}.json").write_text(json.dumps({"outcome": "merged"}))
+    assert world.mod._merge_rate(ctx) == 1.0
+    assert world.mod._after_merge_due(ctx, "# merge-tests-after-merge-above: 1\n") == ""
+    assert world.mod._after_merge_due(ctx, "# merge-tests-after-merge-above: 0\n")
+    _after_world(world, "true")
+    kicked = _kicks(world)
+    monkeypatch.setattr(world.mod, "_pretested", lambda c, wt, s: ("green on the pretest", ""))
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    rec = world.record(msg_id)
+    assert "tests: green on the pretest" in rec["evidence"] and "tests_after_merge" not in rec
+    assert kicked == []
+
+
+def test_the_verb_the_kick_and_the_resume_guard(world, monkeypatch):
+    """The after-merge-runner verb runs the runner; the kick starts exactly that verb on this main
+    checkout; a resumed merge owes once (review r1 C-5)."""
+    started: list = []
+
+    class _P:
+        def __init__(self, argv, **kw):
+            started.append((argv, kw.get("cwd")))
+
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    with monkeypatch.context() as m:
+        m.setattr(world.mod, "_scope_ok", lambda env: False)
+        m.setattr(world.mod.subprocess, "Popen", _P)
+        assert world.mod._kick_after(ctx) == ""
+    argv, cwd = started[-1]
+    assert argv[-3:] == ["after-merge-runner", "--main", str(world.main)] and cwd == world.main
+    _after_world(world, "true")
+    _kicks(world)
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    assert world.run("resume", msg_id) == 0  # a replied record resumes to its end again
+    owed = (world.main / ".git" / "fabrik-merge" / "after-merge" / "owed.jsonl").read_text()
+    assert len(owed.splitlines()) == 1
+    assert world.run("after-merge-runner", "--main", str(world.main)) == 0
+
+
+def test_a_red_leg_with_no_recorded_ids_stays_owed(world):
+    """Exit 1 with no red id recorded is no verdict (review r1 C-5)."""
+    recs = _land_two(world, "exit 1")
+    assert world.mod._after_merge_runner(world.main) == 1
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    status = json.loads((d / "status.json").read_text())
+    assert status["rc"] == 3 and status["covers"] == [r["id"] for r in recs]
+
+
+def test_a_collection_error_red_still_names_its_cause(world):
+    """A red id can be a collection error, which plain pytest exits 2 on (review r2 A2-1)."""
+    _after_world(world, "true")
+    _kicks(world)
+    ids = [world.send(world.branch({"tests/test_x.py": "import nosuchmod_zz\n"}, msg="breaks"))]
+    assert world.run("merge") == 0
+    ids.append(world.send(world.branch({"b.txt": "x\n"}, msg="b")))
+    assert world.run("merge") == 0
+    recs = [world.record(i) for i in ids]
+    todo = [{"id": r["id"], "merge_sha": r["merge_sha"]} for r in recs]
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "")
+    assert world.mod._after_cause(ctx, todo, ["tests/test_x.py"], dict(os.environ))["id"] == ids[0]
+
+
+def test_a_red_in_a_repo_without_a_work_store_is_covered_not_rerun(world):
+    """No store to file into: the red is covered and said, never re-run by every later merge (A2-2)."""
+    recs = _land_two(world, _RED_LEG)
+    world.mp.setattr(world.mod, "_after_cause", lambda ctx, todo, ids, env: todo[0])
+    (world.main / ".fabrik" / "work" / "config.json").unlink()  # a dir is not a store (r3 A3-1)
+    assert world.mod._after_merge_runner(world.main) == 0
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    status = json.loads((d / "status.json").read_text())
+    assert status["rc"] == 1 and "no .fabrik/work store" in status["item"]
+    assert set((d / "done.txt").read_text().split()) == {r["id"] for r in recs}
+
+
+def test_an_owed_entry_without_an_id_is_never_owed(world):
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    d.mkdir(parents=True)
+    ok = {"id": "01OK", "merge_sha": "c" * 40, "old_base": "d" * 40}
+    (d / "owed.jsonl").write_text(
+        json.dumps({"merge_sha": "a" * 40, "old_base": "b" * 40}) + "\n" + json.dumps(ok) + "\n"
+    )
+    assert world.mod._after_todo(d) == [ok]  # the id-less entry is dropped, the valid one kept

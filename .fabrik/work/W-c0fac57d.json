@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:40.647573Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c0fac57d",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5G021B321S8YXJZ651ZB5FP, validate against current master, then fix or drop (proposed score: impact low, effort low — review_receipt.py --init example rows name an Opus finder the file loop no longer seats; a template fix)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "review_receipt.py --init example rows name an Opus finder the file loop no longer seats; a template fix",
+  "status": "open",
+  "title": "mail 01M5G021B3 (fabrik): WHAT: two /fabrik-review feedback rows need code in scripts/review_receipt.py, not command text."
+}

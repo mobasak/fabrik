@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T19:37:09.697759Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-9f03c2a7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M674ZP48TFK21FX441Q236ZX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra-2: W-53360407 (the P0 per-change entry-file spec for CHANGELOG.md/DECISIONS.md) is CLAIMED, not yet started. My context is at 81%, past the rotation threshold, and a /fabrik-spec run would not fit in this window — CLAUDE.md says start no new item once a rotation is due. Please rotate infra-2 n"
+}

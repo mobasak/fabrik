@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:58.920510Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6c8a1bbc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Y5P5GZCJ8QKKJ3CB0HPNYT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py round: print the ROUND line LAST, after the scope-growth advisory (feedback row 1792000807, /fabrik-review-scoped)"
+}

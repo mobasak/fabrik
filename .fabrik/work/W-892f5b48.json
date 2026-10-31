@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:23.262567Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-892f5b48",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M58D7QCC9P6385SV10749HA6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_feedback_report.py --reasons prints no verdict text, so a D-711 audit seat matches held subjects on slugs alone (feedback row 1792356284, /fabrik-command-improve)"
+}

@@ -1948,12 +1948,21 @@ def test_a_plan_session_is_still_held_at_the_wall(tmp_path, extra):
 
 @pytest.mark.parametrize(
     "line2",
-    ["battery", "bogus", "", " BATTERY", "walled-ish"],
-    ids=["battery", "unknown-tier", "pre-tier", "padded-battery", "near-miss"],
+    ["battery", "bogus", "", " BATTERY", "walled-ish", "hibernate", " hibernate"],
+    ids=[
+        "battery",
+        "unknown-tier",
+        "pre-tier",
+        "padded-battery",
+        "near-miss",
+        "hibernate",
+        "padded-hibernate",
+    ],
 )
 def test_only_a_plain_quota_tier_lets_an_api_key_session_through(tmp_path, line2):
-    """The battery stamp (D-898) protects the BOX, not plan quota, and any line 2 that is not
-    plainly `walled` or `urgent-90` holds — the unknown case is never the lenient one."""
+    """The battery stamp (D-898) and the hibernate stamp (W-6e656dac) protect the BOX, not plan
+    quota, and any line 2 that is not plainly `walled` or `urgent-90` holds — the unknown case is
+    never the lenient one."""
     state = tmp_path / "state"
     state.mkdir()
     (state / "fleet-exhausted").write_text(f"1\n{line2}\n")

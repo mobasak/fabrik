@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:36.961801Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5712d17a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66DXR3CVF3B94N6BFD20CJP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the Stop hook has no way to honour a repo ruling that suspends per-change reviews. web-ecommerce-factory D-614 (operator 2026-10-30: \"i dont want reviews are being done after changes for now. it will done when everything is finished once.\") defers all ocoron.com reviews to one end-of-site revi"
+}

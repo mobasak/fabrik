@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:28.008083Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-cd9990d6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Y7MHEQWM12E67EZKYP9A1A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_rules.py has no path to retire an obsolete ban clause — a vanished ban-bearing baseline line can only be `rule:` to a live entry that keeps it verbatim"
+}

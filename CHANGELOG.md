@@ -13,6 +13,257 @@ guards keep it that way: a slow-exiting fake tmux must leave the fake clock stil
 `sleep`, and a syntax-tree scan (`_clock_patches`, with a 22-case probe list) refuses any patch of `time` in the file
 outside `_rs_time`. Review residue: W-f0cbce0d.
 
+### Fixed — master's three load-flaky tests read red no more in a busy merge leg (2026-10-31)
+The prune in-flight test aged its files from a clock captured at import, so a test run 20+ minutes into a suite
+lost its in-flight sidechain; it reads the clock at call time now. The nested-done command_run tests scanned the live
+hub on every `step` (6-14 s against a 30 s timeout); they start from their own run folder. The gate's human-vs-JSON
+test compared two live gate runs (205 s) that differ when a check times out; it renders one run's rows through both
+modes in-process (0.05 s). A merge leg no longer re-runs these on the base (D-1410, W-a9b3bc15).
+
+### Fixed — a refusal reply quoting an after-merge red no longer outgrows mail.py's 64 KB cap (2026-10-31)
+`scripts/merge_request.py` cuts each red test id shown in an after-merge red item's title to 160 characters (the full
+list stays in `after-merge/status.json`) and cuts a quoted item title to 1,500 characters and every reason, evidence and warning line a reply or ack carries to 4,000, with the whole reply bounded at 48 KB in the preflight refusal. One
+~100 KB parametrize id had made MR 01M690NBSH's reply 102 KB, so mail.py refused it and every resume retried it (W-f4ce5c6b).
+
+### Added — merge test legs wait for room in the box's test slice instead of all running at once (2026-10-31)
+Every repo's merge legs (merge, pretest, queue child, after-merge) now take a box-wide lease and start only while
+the declared memory of the legs already running plus their own fits capped_run's 12G slice. Two to six legs had run
+together for 189 of 242 leg-minutes over two days. The wait is outside the leg's budget, at most 900 s per merge run, and
+the queue's wall grows to 12000 s to cover it (D-1405, W-fbd1d4b9).
+
+### Fixed — the worktree-guard test's probe repo carries the decision ledger (2026-10-31)
+`tests/test_assemble_worktree_guard.py`'s fixture copies `docs/DECISIONS.md` beside `commands/`, so a size ceiling
+raised past baseline+3% with a `raised_by` row (D-1399's `fabrik-deploy-plan-review`) validates as it does in the hub;
+without it the after-merge leg went red on kaizen's merge c5d6257e1 (W-fa19ed9a).
+
+### Changed — every coordinator's duties toward its tmux builders, in the common paragraph (2026-10-31)
+Both CLAUDE.md copies' coordinator paragraph now carries D-1396's four duties as one **Builders** sentence: the
+coordinator decides when a builder is dispatched and commits its charter (and the role charter `add` needs) on the base
+branch first, checks the tabbed launcher lists its grids, watches every builder pane at every turn and hook nudge, and
+rebuilds every builder's NOW, DONE and NEXT from records with the hub's `agent_status.py --repo .`. The Never clause
+allows the builders' charters; the hub coordinator charter and `docs/reference/tmux-agents.md` follow (D-1404,
+W-b9916ab1). Grader: `tests/test_coordinator_duties_d1396.py`.
+
+### Fixed — `fabrik_deck.py install` turns Ubuntu's boot-time `/tmp` wipe off, so a WSL restart brings the Deck back (2026-10-31)
+Ubuntu's stock `/usr/lib/tmpfiles.d/tmp.conf` says `D /tmp 1777 root root 30d`; `D` deletes `/tmp`'s contents at boot, and with ~119 GB of agent scratch there the wipe held sysinit 9 minutes on 2026-10-31 — no user session, code-server or docker (D-1389). `install` now reads `systemd-tmpfiles --cat-config` (plain, no colours or pager), parses every line naming `/tmp` the way systemd does (quotes, `%T`, `/tmp/`), and — unless no line wiping `/tmp`'s contents as a whole at boot (`D`/`R` on `/tmp` or `/`, `r`/`R` on `/tmp/*`; the stock lines clearing one named entry under `/tmp` are not wipes) is in effect, which owes nothing — writes `/etc/tmpfiles.d/tmp.conf` = `d /tmp 1777 root root 30d` through `sudo -n install` as its LAST step and re-reads the merged config, exiting 1 with the Deck installed and the by-hand line when sudo refuses or another drop-in still carries a wipe line (measured: a wipe line in any file wipes). Before any write it refuses when a file at that path is in effect yet a wipe line remains (naming the files), and when `sudo` or `systemd-tmpfiles` is missing. `docs/workstation/fabrik-deck.md` gains § Troubleshooting (symptom, diagnose, unblock, permanent, the `.wslconfig` unknown-key cleanup). Tests: the fake-driven install paths and a real `systemd-tmpfiles --cat-config --root=` run over the stock line, the same-named shadow, a differently named drop-in, the mask and six spellings of `/tmp` (W-0c208792, D-1407).
+
+### Changed — an account whose plan dropped the 5-hour limit reads `5h retired`, not a stale percentage (2026-10-31)
+The usage payload of an account on the plan now named Ultra can drop its `five_hour` window (sarp's did on 2026-10-31; ob, ozgurbasak, can and mob still report one). Both payload parsers in `claude_rotate.py` failed the whole reading closed on it, so the tick served sarp from a 12-hour-old cache. A payload with `five_hour: null` whose limits are a `weekly_all` entry plus only weekly kinds now reads as a retired window (0.0 plus `retired: true`): bands come from weekly and Fable, the tick's ledger row writes `session: retired` instead of a fake 0% sample, and the `QUOTA:` line prints `5h retired`, `--status` `session retired` and the :5051 dashboard `retired`. Every other null shape still fails closed; an account still reporting a 5h window behaves as before (D-1400, D-1401, W-992979e1).
+
+### Fixed — the test conftest scrubs the after-merge leg's base override too (2026-10-31)
+The after-merge leg exports `FABRIK_MERGE_TESTS_BASE` (D-1382); its pytest shards inherited it and the selector tests in `tests/test_merge_test_select.py` ran against the leg's base, so every after-merge leg that selected them read red (W-aa8c473c, filed against merge 9aaab68ff). `tests/conftest.py` now pops it beside `FABRIK_MERGE_TESTS_RECORDS`, and `tests/test_conftest_isolation.py` exports each variable in turn.
+
+### Changed — the hub merge leg stops selecting tests by a file name's substring (2026-10-31)
+`scripts/merge_test_select.py` matches a changed file's stem as a whole word, so a CLAUDE.md change no longer runs every
+test naming `CLAUDE_AGENT` and a compose.yaml one every `docker compose` test; a test importing a test the change selected
+by name is selected with it, so 16 readers the old rule missed now run (net -57 s serial per merge on master's last 60 merges). The D-1189 replay stays 17 of 17 (D-1394, W-fbd1d4b9).
+
+
+### Added — every repo's coordinator watches its builders: the one-wake builder watch (2026-10-31)
+`scripts/sysadmin/watch_builders.py <sid> <repo>` is a one-wake background watch for a repo's coordinator. It reads every builder pane of the repo's agents_up grid every 30 s and the repo's mailbox, and ends with one line naming each builder that went from busy to not busy, ended a turn or vanished from the grid, and each mail for the coordinator (its role, `coordinator`, or nobody; never its own, so another repo's coordinator still counts), followed by the re-arm order. What it last saw is kept beside its lock, so a finish during a wake is named by the next arm. Busy is `rotate_session.pane_state`, measured on 23 live panes: a spinner row above the input box, or a seat row or monitor count in the footer; a `· done` turn end is idle even with leftover shells, and a truncated `…` is no signal (the hand-made loop it replaces read the idle panes as busy, 13 of the 16 carrying a hint truncated with `…`). `rotate_session.builder_panes` is the PANE WAITING scan's grid filter, lifted with its shared deadline. The user-level `selfwatch_check.py` orders the arm in a window launched in a repo's main checkout whose repo is in coordinator_mode or has a live builder grid (8 repos when measured on 2026-10-31, 4 of them without coordinator_mode), prints `BUILDER WATCH CANNOT ARM` instead of an order that would fail (an unquotable repo path, an unwritable or irregular lock), and stays silent everywhere else; `docs/reference/tmux-agents.md` § Watch your builders. W-c814836f, D-1396 duty 3.
+
+### Fixed — master's pre-existing reds, batch 3: the portability CLI smoke test no longer reads the host .env (2026-10-31)
+`tests/test_portability.py`'s export/import dry run stubs the `.env` read and asserts the exact secrets line, so it no longer reads red in a merge worktree. The full-suite census also found the scaffold's silently failing initial commit (filed to fleet) and three load-only flakes (D-1398, W-a9b3bc15).
+
+### Added — ledger merge driver: git resolves the five root ledgers at merge time (2026-10-31)
+`scripts/merge_request.py merge-ledger %O %A %B %P` runs the existing insertion resolver as a git merge driver: a clean resolution rewrites ours marker-free at exit 0, an edit of a landed row, a path outside the five ledgers or a new duplicate D-id in `docs/DECISIONS.md` refuses at exit 1 with ours untouched, and the `|| git merge-file` fallback then writes ordinary markers. `scripts/install_post_commit_hook.sh` registers `merge.ledger.*` and mirrors the `.gitattributes` `merge=ledger` lines; `.gitattributes` maps CHANGELOG.md, docs/DECISIONS.md, INDEX.md, docs/STRATEGIC_BACKLOG.md and docs/LESSONS_LEARNT.md. Replayed over 2026-10-17..31 the driver clears 58 of the 67 builder merges that conflicted only on ledgers, with no duplicated line (spec `docs/superpowers/specs/2026-10-30-ledger-merge-driver-design.md` § Derivations D5; residue W-6614b62e). W-53360407, D-1386.
+
+### Fixed — master's pre-existing reds, batch 2: three tests coupled to their checkout, date or path (2026-10-31)
+`tests/test_install_pre_push_hook.py` takes the running venv's pre-commit (a merge worktree has no `.venv`), `tests/test_spend_calendar_months.py`'s two calendar tests no longer fail on the 31st or on the 1st and 2nd, and `tests/test_agents_up.py` checks both streams for the foreign name as a word, not a substring of the path (D-1393, W-a9b3bc15).
+
+### Fixed — master's pre-existing reds, batch 1: an orphaned test removed (2026-10-31)
+`tests/test_pipeline_runner.py` imported a module archived in February and failed at collection whenever a run named it; it and its `addopts` ignore in `pyproject.toml` are removed. (D-1387, W-a9b3bc15).
+
+### Added — the merge program's daily tripwire: merge wall time, refusal classes, red-master before/after the valve (2026-10-31)
+`scripts/sysadmin/merge_tripwire.py` reads the hub's merge records (`.git/fabrik-merge/*.json`) once a day from the
+kaizen collector's daily pass: wall time per merged request (request ULID to reply), every refusal event by class
+(retried ones included) for the day and 14 days, and `waste_red_master_rework` pooled before and after the post-merge
+valve. A rise sustained for 7 days past 2 sigma mails the coordinator once per episode that the threshold goes back to
+40 (D-1384). The coordinator's prompt block shows its one line, or `STALE` when the collector stopped
+(W-622ec42c, D-1390). The collector's tests no longer reach the live repo's merge records (`tests/conftest.py`).
+
+### Fixed — a desktop agent tab that fails stays open with its reason (2026-10-31)
+Every tab of `All Agents (tabbed).bat` and `<Repo> Agents.bat` now runs `agents_up.sh --tab`, and the Windows Terminal fragment profile sets `"closeOnExit": "never"` (W-df2e24ed, D-1388). Under `--tab` a launch with no terminal exits 1 (4 when a builder got no pane) with the reason instead of detaching silently (which let the tab close), any other failure before the attach (an argument error or a signal included) prints a `stopped (exit <n>)` line from one shared exit handler, and a `--window` tab says it is waiting. A `wsl.exe` that fails before WSL starts (the vsock fault, W-37b51748) stays readable. Regenerate once: `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed`.
+
+
+### Added — a merge request from a branch more than 500 commits behind its base is refused, with the merge to run (2026-10-31)
+`scripts/merge_request.py request` now counts the commits on the base's remote tip that the branch lacks, fetching the
+tip once when the clone lacks it, and refuses past 500 before anything is sent, printing `git fetch <remote>
+refs/heads/<base>` then `git merge FETCH_HEAD` (never a rebase; the full ref never picks a same-named tag). A fetch
+failure or timeout refuses too. Both `CLAUDE.md` copies say builders merge the base at every item boundary and before
+every request, graded word for word against the script's limit, and the operating-model doc states the refusal. A branch
+that still runs a copy from before this check is not covered (W-731a7652). W-527c1ce0, D-1381, D-1391.
+
+### Fixed — review seats run their tests under capped_run.sh, never under the Bash tool's timeout alone (2026-10-31)
+A wef review seat's mutant blocked on a FIFO under plain pytest and ran 2 days 13 hours: the Bash tool's `timeout`
+only moves a command to the background, and no seat-facing text carried D-935's capped_run rule (mail 01M65ZP80Q).
+The fabrik-reviewer House rules now say: run every test, and every probe that executes pinned code, as one plain
+`capped_run.sh --timeout <s> -- <command>` (`<s>` defaults to 120, at most 540), with the Bash parameter at `<s>` + 60 s
+and no outer `timeout 120`. Exit 124, 137, or 2 with a `capped_run:` line, is no result: the test and its mutant are
+`unverified`, and a no-manager `capped_run: WARNING` goes to MACHINERY. The probe catalogue's § Seat isolation points at that clause, and its mutation bullet
+names the same timeout. /fabrik-review and /fabrik-review-scoped name the cap in their summary of the section. Four
+L1 ceilings are raised to the measured growth (D-1399). Grader: `tests/test_seat_capped_run_line.py`. Infra's
+seat_guard.py unwrap of `capped_run.sh` (mail 01M68KA2EC) lands first; intel's workflow prompt follows (01M68KHK0H).
+
+### Added — every new agent grid refreshes "All Agents (tabbed).bat" itself; the tmux how-to (2026-10-30)
+`scripts/sysadmin/agents_up.sh` now starts `agents_bat.py --tabbed` in the background after every grid it builds
+(interactive, `--detach` boot sweep, `add` cold start), when a desktop is remembered. Refreshes are coalesced (one runs,
+one waits, the rest exit) and each appends to `~/.config/fabrik/agents-bat-refresh.log`. A skipped or failed start is
+said and never fails the launch (D-1376, W-8209a305). `agents_bat.py --tabbed` lists each repo's overflow tabs as its
+live `agents-<n>` windows plus those its `--print` pane count implies, so a refresh no longer drops a down grid's tabs.
+New `docs/reference/tmux-agents.md` says how a coordinator reaches, wakes, relaunches and rotates tmux builders. The
+coordinator paragraph of both contracts now points at it, and a builder line says builders report back in the same turn
+(D-1377).
+
+### Changed — hub merges land first; the same test leg runs after the merge (2026-10-30)
+`scripts/merge_request.py` gains D-1186's relief valve: when the base's `.fabrik/merge-tests` declares
+`# merge-tests-after-merge-above: <n>` and the last 7 days averaged more than n merges a day, a merge
+lands after build, preflight and CAS, and one background `after-merge-runner` runs the same selected leg
+once over every merge landed since the last tested tip (`FABRIK_MERGE_TESTS_BASE`, honoured by
+`scripts/merge_test_select.py`). A red files a P0 work item (tag `after-merge-red`) whose title names
+the cause merge and its author, and that author's next request is refused until it carries the item. The hub
+declares 0: on for every hub merge (D-1384; built as D-1382, W-3237ba45).
+
+### Fixed — The kaizen collector commits its own log rows; PORTS.md stops churning (2026-10-30)
+The daily `kaizen_collect_v2.py` cron runs from the hub's main checkout and left its week rows uncommitted there,
+so `merge_request.py` refused every merge touching `docs/reference/agents/kaizen-log-{infra,fleet}.md` ("dirty in the
+main checkout (not a ledger)") and builders carried the rows by hand (W-5568be8d). New `scripts/commit_generated.py`
+lands ONE pathspec commit (`Agent-Name: kaizen-collector`, not pushed) of only the files that were clean at HEAD
+before the write, or still hold its own unlanded bytes on the same HEAD blob; anything else stays dirty with a
+reason. `sync_projects.py` no longer writes a `Last synced` line into PORTS.md and rewrites neither PORTS.md nor the
+catalog when nothing changed; who commits its real changes is W-7999e0ea. Tests: `tests/test_commit_generated.py`.
+
+### Fixed — agents_up launches every pane with --permission-mode bypassPermissions (2026-10-30)
+Every claude command `scripts/sysadmin/agents_up.sh` builds (grid start, `--pane-cmd`, the spawn and rotate `--move`
+`--session-id` launches, and the "already running" and "exited — run:" hint lines) now passes
+`--permission-mode bypassPermissions`, per the operator's 2026-10-30 ruling; a `--resume` keeps the saved mode, so
+relaunches came back in auto (D-1375, W-b9b6472e). A grader holds every launch shape in `cmd_of` to the flag; the
+rollout and session-history docs name it.
+
+### Added — /hibernate holds itself at T-3 and lifts itself after the wake (2026-10-30)
+The minute cron (`claude_rotate.py --battery-tick`, a new crontab line the operator installs) writes its heartbeat and,
+at T-3 of an unlifted `/hibernate --deadline` mark, makes the fleet-exhausted stamp the `hibernate` tier, judging a
+sleep by its own previous beat. The */5 tick lifts the pause by a sleep under the mark, a network outage after T, or
+30 min past T, writes `lifted_at`/`lift_path`, and wakes every armed self-watch with `.holdlifted hibernate`; the Stop
+hook holds an unlifted tier on a stale tick log; `command_run.py step` snapshots the repo (`wip_backup.sh`, at most
+once per 2 min) and `blocked`/`handoff --abandoned-seat` record the seats a T-3 close cut. `/hibernate` now always
+marks `--deadline 10m` and the hub's `lift` is only the dead-cron escape; the hold text orders `blocked --paused`.
+`hibernate.py paused` now exits 0 (held) on an unreadable marker or home, so no launcher runs during a pause it
+cannot read; `update_marker` fsyncs; `agents_up` exits 4 when a builder got no pane, and the boot sweep and
+`agents_spawn` never count that builder relaunched; the RESUME prompts say to stay paused on `woke` exit 2
+(W-6e656dac T06 + T04 residue; whole-plan review 15 → 2 → 0 confirmed).
+
+### Added — The mesh scripts get a tracked home, the hibernate wake and the boot builder leg (2026-10-30)
+`scripts/sysadmin/mesh/` holds claude-selfwatch.sh, claude-reboot-sweep.sh and claude-mesh-test.sh, and `install_mesh.sh`
+installs them after a unique, byte-checked backup, `bash -n` and the harness, restoring on a failed replace. The self-watch
+wakes on a `hibernate` or `resume` lift after three API answers and jitter, gated on the kind it prints, and its hibernate
+line carries `woke`'s exit-0 condition. The boot sweep consumes autonomous markers without resuming them, and builds every
+`agents_bat.py --list` repo's grid detached once per boot per repo, retrying a repo whose launch failed; `--list` skips an
+unreadable or newline-named folder and the sweep notes it (W-6e656dac T04; review 41/13 → 9/5 → 4/1 → 0).
+
+### Changed — the panel answers every gate a coordinator can validate; the operator keeps five labelled classes (2026-10-30)
+
+- Plan-1 Phase A (W-4a03df79, D-1110, approved D-1122). Both contracts' § FINAL OUTPUT gate ground hands design and
+  plan approval, Gate 1, an own-VPS Gate 2 with backup and rollback, backed-up destructive acts on our own
+  branches/worktrees/scratch/test repos/old volumes, dump-first production-data windows, fleet-minted credentials,
+  own-surface publishing and in-ceiling spend to the Opus + Fable panel. The operator keeps the rest, each block
+  labelled `operator-kept: public|above-ceiling|recurring|operator-minted|unbacked`. Spend stays the operator's while
+  the ceiling is 0, and irreversible acts always. § Autonomy, the coordinator-role Escalation, the template's
+  hub-request bullet, `design-gate-panel.md`, `deploy-chain.md`, `/fabrik-deploy`, `/fabrik-deploy-plan-review`
+  (two gate blocks plus the `PANEL APPROVED` close), `/fabrik-release` and the NEXT map now say the same.
+- The five deploy-chain lean ledgers are re-cut onto the approved wording on the branch (D-1371), and
+  `commands/_size_ceiling.json` licenses the new D-1110 read. Graded by `tests/test_least_operator_approval.py` (A1-A7).
+
+### Fixed — the hub sync runner survives its merge run's capped_run scope (2026-10-30)
+
+- `merge_request.py` starts the governance `sync-runner` in its own transient user scope (`fabrik-agents.slice`, `--collect`, a `RuntimeMaxSec` backstop) when that exact start probes green, bare otherwise, so capped_run stopping the merge's scope at exit no longer kills a sync mid-write and the drain's "still running in the background" line is true; the runner starts no sync past its soft deadline and leaves the debt owed (W-73d00b05, D-1370).
+
+### Fixed — merge: the governance sync runs outside the merge lock (2026-10-30)
+`scripts/merge_request.py` no longer runs `sync_enforcement_to_projects.py --force` inside the merge lock (W-4f4ac600, D-1369): a landing that merged a governance-sync path held the lock ~4 min after its push (01M64FJ6AT: push 00:59:53, reply 01:04:04; two no-sync landings released ~6 s after their CAS), and `merge --queue` waited it out per landing. A landing now owes the sync (`<git common dir>/fabrik-merge/sync-owed.log`) and kicks a detached `merge_request.py sync-runner`, which serializes on its own `sync.lock` and loops until a successful sync covers the owed log (the sync itself holding that lock, so a killed runner's orphaned sync is never doubled); the run's end waits for it, `SYNC_TIMEOUT_S` in all, gives a runner that exited 0 with a debt still owed one more runner, and prints `sync: ran`, `sync: FAILED … --force`, `sync: still running in the background` or `sync: unknown` (the exit code unchanged); a debt a failed or killed run left is retried by the next hub landing.
+
+### Changed — merge queue: a later leg is budgeted on the run's own timed legs (2026-10-30)
+`merge_request.py merge --queue` budgeted every forked leg at the base's declared limit (2700 s on the hub), which closed the fork window at 1080 s of its 11100 s wall: from the third request on every landing ran its leg inside the merge lock, one per ~16 min, while a live hub leg measured 697 s (W-1fb11ec8). `_leg_fits` now budgets a later leg at 1.5 x the longest green queue leg this run timed (its own recorded seconds, exit 0, `queued_as` its element), capped at the declared limit and at that limit until one is timed — window 2734 s at 697 s. Fixed with it: a request whose queue leg failed was forked again after every chain rebuild; a request now gets one queue leg per stacked tree per run and then lands through its locked leg, while one re-stacked after an earlier refusal is tested again outside the lock. Every leg still ends inside the wall (graded), no test is skipped, no untested tree lands (D-1211, D-1225).
+
+### Changed — merge leg: a review receipt selects tests by its file name only (2026-10-29)
+`scripts/merge_test_select.py` keys a changed `docs/development/reviews/*.md` receipt by its file name alone instead of its directory (W-1fb11ec8, D-1356): over the 59 coordinator merges since 2026-10-28 12:00 the leg's serial selection drops 8.2 %, every selection a subset of today's, 17 of 17 measured red-master catches kept. Importer-closure narrowing was measured and rejected (D-1356); the leg's confirm phase, about two thirds of a measured leg, is W-c80361e4.
+
+### Changed — merge leg: an ordered re-run stops one test past the reds it verifies (2026-10-29)
+A merge-leg red that is green alone used to re-run its whole shard in order (~500 s) and, when red there, the
+whole shard again on the base. The recording plugin now cuts such a run one test past its last red, with every
+shard file still collected; the replayed glitchtip leg would have saved ~480 s of 1,644 s (W-c80361e4, D-1360).
+
+### Added — `rotate-session --move`: relaunch a builder's pane in the worktree it works in (2026-10-29)
+A builder that moves into another linked worktree keeps loading hooks, settings and permissions from the folder its pane
+started in, and its session stays filed there, so neither a /clear nor a relaunch could move it (W-e38f8ee7, D-1355).
+- **New verb:** `agents_up.sh rotate-session <name> --move` is a rotation at the same item boundary into the worktree
+  the session's `cwd` sits in.
+- **How it runs:** the fabrik-rotate unit gets the pane command from the new `agents_up.sh --pane-cmd … --into
+  <folder> --from <old sid> --replacing <old pid>` first, then re-runs every check and re-reads the box and transcript
+  just before the kill. It then runs `tmux respawn-pane -k -c <folder>` with a fresh `--session-id` launch whose first
+  turn is the move prompt, reaps the old claude by pid, re-points the registry and waits for the re-bind.
+- **Rows:** `mode: move`, `into`, `old_exit`; new outcomes `refused:launch`, `partial:respawn` and `partial:launch`.
+- **Tests:** `tests/test_rotate_session.py` (6 new) and `tests/test_agents_up.py` (3 new). The build's 10 guard mutants
+  are killed, and so are 9 of the full review's 10 fix mutants; the tenth (the quoted checkout path) is shown by its
+  grader failing on the unfixed commit.
+
+### Fixed — spoke backrest and traefik declare memory and CPU limits; the infra grader reads every host (2026-10-29)
+`infra/vps2|vps3/backrest` gain `cpus: '1.0'` and `infra/vps2|vps3/traefik` gain `memory: 256M` + `cpus: '2.0'`
+(it had no limit at all). `tests/test_infra_vps1_cpu_limits.py` now grades every `infra/vps*/` host, adds a
+plain-size memory grade, and caps cpus at min(2.0, half the host) from a per-host CPU table. The live step is the
+coordinator's operator gate (`docker update` per spoke, then the live compose lines). D-1357, W-1e9cd280.
+
+### Fixed — a `--lean` green says plainly it ran no mypy (2026-10-29)
+- `scripts/final_gate.py`: every Tier-1 run except a `.md`-only diff adds the green skip row
+  `Tier-2 checks (NOT RUN — --lean)` (W-d488bbbf, feedback row 1791309119). It names the Tier-2
+  checks it did not run and points at `final_gate.py --json`, so a lean-only green no longer reads
+  like grounds for a merge request. It is advice, not enforcement, and travels through the existing
+  channels (`warnings`, `skipped_checks`, the roster, the human `Skipped:` line); no JSON key was
+  added. Those lean runs now report `skipped` ≥ 1.
+
+### Changed — /fabrik-review: a linked-worktree review whose seats may outlast a turn commits its surface first and takes the committed-fix form (2026-10-29)
+`/fabrik-review` Phase 0 now says that in a linked worktree a review of the session's own work whose seats may still be out at a
+turn end can meet the Stop hook's uncommitted-work block (`_review_exempts_commit` in `.claude/hooks/final_gate_stop.py`
+decides when the surface is spared). So, except a plan's whole-plan receipt and the reviews `/fabrik-task` Phase 4 runs
+before its commit, it commits that surface before Pass 1 and takes the Termination contract's committed-fix form. The
+`term-coverage` Persist obligation points at that case. Answers two `/fabrik-review` feedback rows that found the draft
+form only after the first block.
+
+### Fixed — design-system-template: a namespaced alias of a `:root` slot stays in `@theme inline` (2026-10-29)
+The Tokens bullet of `core/design-system-template.md` § Tailwind (CSS-first) usage told a reader that a namespaced slot
+whose value is a `var()` goes in `@theme static inline`, while its own alias example (`--color-surface-0:
+var(--surface-0)`) sat in `@theme inline`, so both forms read as compliant (mail from web-ecommerce-factory). A new
+sentence says the alias is not a slot (a slot is a name § Token slots or the project's `docs/design-system.md` lists),
+gives the compiled difference, and names the four namespaces whose listed `var()` slots stay in `@theme static inline`.
+Two graders pin it and scan every pack's `@theme static` blocks for an alias (D-1363).
+
+### Added — vps1 CPU caps are verified (`vps_apply_limits.sh --check`) and their throttling watched (2026-10-29)
+`scripts/vps_apply_limits.sh` lists every defined container with no CPU cap (NanoCpus and CpuQuota both
+<= 0) and `--check` fails on one; an unreadable CPU read fails every mode, a container removed mid-run is
+GONE. It still mutates memory only. New warning `ContainerCPUThrottled`: throttled in more than 25% of CFS
+periods for 15 minutes while running more than 1 period per second (aro-wake only), promtool-tested.
+Live step is the coordinator's operator gate (sync the script, push the rules). D-1361, W-fc701b31.
+
+### Fixed — tab router: every repo's coordinator in the picker (2026-10-29)
+The VS Code chat-tab picker (`scripts/sysadmin/claude_tab_router.py`) listed a repo only when it already had a known
+agent, so 34 of the 44 /opt git repos never appeared and only 2 offered a role named `coordinator` (W-5f4b0972,
+D-1364). Every git repo under /opt is now listed, each with its coordinator: the ledger's merge owner, or the plain
+`coordinator` labelled `(no owner row)` where the ledger declares none. A missing ledger or a failed lookup offers no
+coordinator row. The `decisions.py --merge-owner` lookups run on 8 threads with a 5 s timeout each and stop 3 s before
+the picker's deadline, so one hung lookup no longer costs the whole picker (`hibernate.merge_owner` gains a `timeout`
+keyword and the `DECLARES_NONE` constant). Registry repo keys are normalised, so `/opt/x/` and `/opt/x` are one
+repo. 7 new tests (28 in the file, 21 before); `docs/workstation/claude-tab-router.md` updated. Full `/fabrik-review`
+3 rounds (2 → 3 → 0 confirmed); residue W-e9386861, W-449dfa54.
+
+### Added — kaizen reads every repo's LESSONS_LEARNT and AFCL incrementally (2026-10-29)
+`scripts/sysadmin/lessons_relay.py` rides the daily kaizen collector after the feedback relay and
+mails kaizen one digest of the entries written into any repo's `docs/LESSONS_LEARNT.md`,
+`docs/lessons-learnt.md` or `AFCL.md` since its cursor. Each entry gets one pointer row (path, line
+and heading), which kaizen answers with a command or rule edit, or rejects with a reason. `--seed`
+records the 2,906-entry backlog without sending it, and refuses to replace a live cursor. A stray
+code fence no longer hides the lessons after it: only a fence with a language tag counts, and not
+one that holds another tagged fence as long, because 27 of 84 files end in a stray one. A mail stays under mail.py's size cap, and a heading that
+mail.py would refuse is withheld, so one heading cannot block the digest (W-d6ebcc04, D-1362).
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
@@ -77,6 +328,111 @@ paragraph now says the alternative is outside the mandate and routes a project t
   The rubric's sensor now stays off when `REVIEW_RUBRIC_SENSOR_OFF` is exactly `1`, which only the
   grader sets on its child; real rubric runs emit as before (W-5bfeb31e, D-1345). Historical rows
   are not rewritten.
+
+### Fixed — scaffolded smoke targets remove containers with their anonymous volumes (2026-10-29)
+- `templates/scaffold/docker/Makefile.python`, `Makefile.node` and the file-worker and chrome-extension emitters in
+  `src/fabrik/scaffold.py`: every container the emitted `docker-smoke` and `clean` targets remove goes with `-v`
+  (`-fv` where forced), and the chrome-extension smoke removes a leftover container before its run and
+  its container when the run or the health check fails, and its `clean` target removes it too. A plain
+  `docker rm` or `docker rm -f` leaves the anonymous volume of an image that declares a `VOLUME`, one per smoke run
+  (W-2c8173fa, sibling of W-2786800d). `tests/test_scaffold_smoke_volumes.py` scaffolds every type and requires
+  `-v` on each emitted removal and a leading `-v` removal after each started container's run, and runs each
+  removal against a throwaway container of its own where a docker daemon answers.
+
+### Changed — builders address the coordinator by a live name, never a remembered one (2026-10-29)
+- Both contracts' Session history bullet and the four builder charter files' Escalation paragraph (fleet, infra
+  with its infra-2/infra-3 symlinks, intel, kaizen) name the order: by `SendMessage` to every `to=`
+  name the latest `work: coordinator (<role>)` prompt line prints, else (or when the line is cut short) every name
+  `mail.py who <role>` prints (`<role>` the store's distributor, else the merge owner), and only when no coordinator
+  session is live a `mail.py send --kind request --ack required --to-agent <role>` with the ask on stdin (W-9bf5a363,
+  D-1346).
+  Graded whole by `tests/test_coordinator_live_address_rule.py`.
+
+### Fixed — The kaizen log's Filed cell is refreshed by every run of the week until an analyst writes in it (2026-10-29)
+
+- `scripts/sysadmin/kaizen_collect_v2.py` kept the collector's own first `Filed (spec/mail)` value as if an analyst had typed it, so the cell froze for the rest of the ISO week. A cell that is exactly the collector's bare `N filed / N none / N unstated` is now refreshed (a dash or a golden refusal included); any text an analyst adds still wins. `docs/workstation/kaizen.md` states the rule (W-90163961, D-1347).
+
+### Changed — the review lead runs a node_modules test its seats cannot (2026-10-29)
+- `commands/_fragments/review-probe-catalogue.md` § Seat isolation: a test that needs a gitignored
+  dependency tree (`node_modules/`) runs on no seat tree (an archive or clone holds none; a link or
+  variable pointing at the live one lets the run write inside it; a copy is the barred copy of the
+  live checkout). The seat reports it unverifiable and the lead runs it when the change touches it,
+  the code it tests or the config, manifest or lockfile its run reads, in the throwaway worktree at
+  the pin's base with the pins laid over it, after an install from the lockfile that governs the
+  tree (its own or its workspace root's; the manifest alone when none does). A tree outside the
+  repo is used only by a run that writes nothing inside it, else it stays unverifiable; every tree
+  no lockfile installed is named UNPINNED (intel mail 01M640TVJY, W-9ad5860f's lead half). Ledger
+  entry `cat-a-node-harness-test-is-the-leads-to-run`, grader in `tests/test_seat_recipe_readable.py`.
+
+### Added — WSL proves its network to the Windows NAT watchdog with a heartbeat timer (2026-10-29)
+- `scripts/sysadmin/wsl_net_heartbeat.sh` + `wsl-net-heartbeat.{service,timer}` (every 60 s) and
+  `install_wsl_net_heartbeat_timer.sh` (W-960d68a8, D-1348). The operator's `WSL-NatWatchdog`
+  probed WSL with `wsl.exe -e curl`, and about one run in seven left an orphaned relay holding
+  hv_sock channels forever (W-97557e65), the cause of the daily `wsl.exe` hang. The timer runs the
+  same probe inside WSL and writes `wsl-net-ran` and `wsl-net-ok` on the Windows drive: both on
+  success, ran only on a network failure, neither on a local fault such as a missing curl. The
+  watchdog then reads whether each file changed. `docs/workstation/wsl-net-heartbeat.md` gives
+  the install, the hand-off order and the operator's exact ps1 edit. Not installed yet: it runs
+  from the main checkout after merge.
+
+### Fixed — two decision-ledger tests grade the tree under test, not /opt/fabrik (2026-10-29)
+- `tests/enforcement/test_check_decisions_unique.py`: `test_the_live_hub_ledger_has_no_stray_rows`
+  and `test_the_cobra_path_is_written_down_where_the_next_reader_finds_it` read hardcoded
+  `/opt/fabrik` paths, so from a worktree they graded the main checkout's ledger and checker
+  (W-72878aa4). Both now read the tree the test file sits in, under every import mode. W-72878aa4's
+  five reader gaps and W-d6647738 (one id reader for the mint) were dropped as time sinks: 0 of 298
+  ledgers hold any of those shapes. Follow-up: W-a00defb5 (ten more tests with hardcoded paths).
+
+### Fixed — the decision-ledger gate reads one ledger table, and the mail digest counts what it shows (2026-10-29)
+- `scripts/enforcement/check_decisions_unique.py` (W-c25fd20f, D-1353): every leg reads one
+  population. The ledger table is the table holding the most D-rows, and a table ends where a GFM
+  renderer ends it (a heading, quote, list item, fence or HTML block ends it). A header and
+  delimiter of different widths render no table, and that is reported. A fake table no longer hides
+  a stray, and a row after the table or indented outside it is reported where it sits. An indented
+  duplicate inside a table is found, and a fenced example is not a row. `D-1`, `D-001` and an
+  annotated `D-1 (amended)` cell are one id. A run from `docs/` (or under a hook's `GIT_DIR`) grades
+  the repo's ledger, and a short header no longer crashes before the blocking lines print. Every
+  leg's verdict is unchanged on all 298 ledgers on the box.
+- `.claude/hooks/mail_notify.py` (W-f3039837): the digest's rows and its unread total read one file
+  list. A dot-named file and a directory named like a message are in neither, as in `mail.py list`.
+
+### Fixed — the Stop hook's panel check holds across a prompt queued mid-turn (2026-10-29)
+- `.claude/hooks/final_gate_stop.py`: a queued prompt's row that Claude Code re-writes with the same uuid no
+  longer clears the seats' verdicts; a DECISION block written before a queued prompt is judged on the verdicts
+  held up to that prompt, as a `PANEL APPROVED` brief already was; the final message takes a cut-off only when
+  it equals the newest walked text, closing a borrowed cut-off the first build opened; a non-object JSON row no
+  longer crashes the panel check (W-573ddaa1, D-1349). A brief more than 2 MB before the next Stop stays unread (1
+  of 155 real briefs) — follow-up W-9e067e18; a re-written operator `user` row still resets the panel's verdicts —
+  follow-up W-432e07dc.
+
+### Changed — /fabrik-task sizes its seats to a defined quota runway (2026-10-29)
+- `commands/_sources/fabrik-task.md` phase 2: the quota runway phase 4 already named is now defined and read before
+  stamping seats in phase 2 and phase 4 — with `successor none`, the minutes until the 5h reading reaches 90 (the wall
+  for a merge or P0 owner the urgent-90 lane lets through) or the window resets, at `claude_rotate.py --status`'s
+  `burn 5h` rate; seats are sized to it and never skipped, and those that cannot fit wait for the lane's park and
+  resume (D-1350; 8 feedback rows).
+
+### Fixed — every deploy path refuses a compose service with no CPU limit (2026-10-29)
+- `src/fabrik/orchestrator/deployer_ssh.py::_validate_compose` now refuses a service whose
+  `deploy.resources.limits` lacks `cpus`, or holds a value outside `spec_loader.cpu_in_grammar`, the same way
+  it refuses a missing memory limit: on the four apply paths, the git redeploy (which resets to the old
+  commit), the non-git redeploy and restart (D-1352, W-43c850b1). A `limits` that is not a mapping is
+  refused as missing memory and cpus: a null or scalar one used to raise TypeError past the git redeploy's
+  reset, and a list or string one used to pass the memory check (`"memory" in` a list or string matches). calendar-orchestration-engine newly refuses until it adds the line (four more
+  projects already refuse for lacking any limits); each gets a request mail. The five docker apps deployed
+  before D-1326 pick the line up at their re-apply.
+
+### Added — the review loop queues a pass's seats under `max_seats` (2026-10-29)
+- `.claude/workflows/fabrik-review-loop.js`: an optional `max_seats` caps the seats running at once, so a
+  partition larger than the seat stamp runs as one pass instead of a trimmed or hand-split one; an invalid value
+  stops the launch; the `DISPATCH:` line appends the cap. A refuter whose agent call throws at the call is retried
+  instead of dropping its slice. `firstLine` no longer prints `[object Object]` for a rejection whose message is
+  blank (D-1354 states the rule). `docs/reference/review-loop-workflow.md`: the `max_seats` row; `box_minutes` is the brief's
+  box, enforced by nothing (D-1354; W-bc394d0b, W-62791872).
+
+### Fixed — A loopback service MCP is emitted only once its systemd unit is installed and enabled (2026-10-24)
+
+- `fabrik-scrape` reached the hub `.mcp.json` with no server behind it, so every hub session started with a dead :8034. `scripts/sysadmin/emit_mcp_project_config.py` now withholds a `SERVICE_UNITS` server whose unit is not installed and enabled under `FABRIK_SYSTEMD_UNIT_DIR` (default `/etc/systemd/system`) and names it in its verdict line; `scripts/sysadmin/mcp_health.py` names a withheld server and a stale entry, so a forgotten install stays visible (W-07298e38, D-1214).
 
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
@@ -1534,7 +1890,7 @@ The fleet-synced `.claude/settings.json` ran each hook as a bare `python3 "${CLA
 
 ### Changed — agents_up relaunch: attach-first, wake prompt, one parent memory ceiling, tmux 3.4 fix (2026-10-22)
 
-- `agents_up.sh` attaches to a repo's grid when one is already up and launches only when none exists (D-1108, W-e841ac37) — only a session recording a DIFFERENT root refuses; it gains `--detach` (and detaches with no terminal), resumes builders with a wake prompt that re-arms the self-watch (its `hibernate.py woke` step waits for W-6e656dac T01a), `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 200, and uses `=name:` for every tmux option read and write, which tmux 3.4 needs (W-1961cc42). The per-pane MemoryMax is gone (D-1109: no memory cap per agent); the parent `fabrik-agents.slice` gets MemoryHigh = MemTotal − max(4G, floor) and MemoryMax = MemTotal − max(2G, floor − 2G), floor `FABRIK_AGENT_NONAGENT_FLOOR` (12G), the minimum margins when the floor leaves nothing, D-1075's 16G under 8G or unreadable (W-0b8a0fba). With no user manager an interactive launch now refuses (exit 2) unless `FABRIK_AGENTS_UNCAPPED=1`; `--detach` launches uncapped with a warning. `capped_run.sh` nests under `fabrik-agents-tests.slice` and waits on a MemAvailable/PSI admission band, at most half its time limit (`FABRIK_TEST_ADMIT_WAIT`, default 300 s), the seconds waited taken off the run's limit. Cherry-picked onto master from W-6e656dac's T05 (1d56acd55) ahead of the rest of that plan.
+- `agents_up.sh` attaches to a repo's grid when one is already up and launches only when none exists (D-1108, W-e841ac37) — only a session recording a DIFFERENT root refuses; it gains `--detach` (and detaches with no terminal), resumes builders with a wake prompt that re-arms the self-watch (its `hibernate.py woke --self` step joined it when W-6e656dac merged master, 2026-10-30), `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 200, and uses `=name:` for every tmux option read and write, which tmux 3.4 needs (W-1961cc42). The per-pane MemoryMax is gone (D-1109: no memory cap per agent); the parent `fabrik-agents.slice` gets MemoryHigh = MemTotal − max(4G, floor) and MemoryMax = MemTotal − max(2G, floor − 2G), floor `FABRIK_AGENT_NONAGENT_FLOOR` (12G), the minimum margins when the floor leaves nothing, D-1075's 16G under 8G or unreadable (W-0b8a0fba). With no user manager an interactive launch now refuses (exit 2) unless `FABRIK_AGENTS_UNCAPPED=1`; `--detach` launches uncapped with a warning. `capped_run.sh` nests under `fabrik-agents-tests.slice` and waits on a MemAvailable/PSI admission band, at most half its time limit (`FABRIK_TEST_ADMIT_WAIT`, default 300 s), the seconds waited taken off the run's limit. Cherry-picked onto master from W-6e656dac's T05 (1d56acd55) ahead of the rest of that plan.
 
 ### Fixed — Firecrawl proxy grader reads recrawl, retrieve and "scrapers at Firecrawl"; a reader's "read" is no fetch (2026-10-22)
 `tests/test_firecrawl_proxy_basic.py` (W-ddb716ca): `MENTION` now catches re-crawl and retrieve in every inflection and the verb-then-`at Firecrawl` form, and its 40-character far lookahead no longer counts `read`, which false-redded "Firecrawl docs are easy to read" (`read` still counts right after Firecrawl). One fixture per change, each proven red when its change is undone.
@@ -1642,6 +1998,31 @@ W-7cf353e1. The emitted `tests/test_health.py` asserted `database == "configured
 longer returns since it pings the database for real, so every new python-api started with a red suite. The starter
 tests now swap the database driver module and pin all three outcomes (ping ok → 200, ping fails → 503, no driver →
 200 "configured (no driver)") without needing a database, and a hub test now runs the emitted suite.
+
+### Added — Seat dispatchers skip while a /hibernate pause is marked (2026-10-22)
+
+- `claude_broker.py` (a paused request gets a 503, audited, no window charged), `cloud_dispatch.py dispatch` (exits 0 before any registry or ledger work) and the fleet-synced `rivals_run.py` (checks once in `main()`) ask `hibernate.py paused` before any new seat; every other exit, a timeout or a missing script proceeds — the check fails open on a host without the hub checkout. Every seat they start carries `CLAUDE_CODE_RETRY_WATCHDOG=1` and starts at `oom_score_adj` 500 (W-6e656dac T03b).
+
+### Added — Cron launchers skip while a /hibernate pause is marked (2026-10-21)
+
+- `weekly_catchup.sh`, `ci_fix_dispatcher.py`, `audit_all_registrars.py` (report-only reconcile) and the fleet-synced `check_mutation.py` ask `hibernate.py paused` (10 s) before starting new work and skip only on exit 0 — every other exit, a timeout or a missing script proceeds and logs one line; any probe error is fail-open. The CI fix worker runs with `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 500. `wip_backup.sh` gains `WIP_BACKUP_ONLY=<repo>`, resolved once and exiting 2 when it matches no repo (W-6e656dac T03a).
+
+### Added — The hooks hold the /hibernate pause (2026-10-21)
+
+- `.claude/hooks/quota_stop.py` (fleet-synced) keeps a `hibernate`-tier stamp holding through a stale or missing tick log while the pause is marked, and admits only the exact `hibernate.py status|woke|paused|lift` forms its argparse accepts; `scripts/sysadmin/quota_posture_hook.py` denies `Agent`, `Workflow` and every `command_run.py start` for every session while the pause is marked, before its early return. A corrupt marker of any shape reads as unmarked in both hooks and never crashes them (W-6e656dac T02).
+
+### Added — /hibernate T01b: `status` checks every agent's seats, records, self-watch and the minute cron before it says SAFE (2026-10-21)
+
+- `scripts/sysadmin/hibernate.py status`: a headless `sdk-*` session and an agent's live seats block before T-3; from T-3 a seat counts only when this pause's closed record names it abandoned; an unarmed self-watch, a stale or missing minute-cron heartbeat, and a run closed blocked without a seed after the mark all block; the uncommitted row names five paths then `+N more`; the header names the pause, T-3, T and the time left; SAFE prints only after two reads. Every read of a path from a record or lock dir is non-blocking and regular-file-only; marker text is escaped before it prints; a home that cannot be resolved fails closed with exit 2 (W-6e656dac T01b).
+
+### Added — /hibernate T01a: a lock-held pause marker, `paused`, a deadline, an owner-only `lift`, and a `woke` that answers only after the lift (2026-10-21)
+
+- `scripts/sysadmin/hibernate.py`: the marker (`hibernate.json`, under `$ROTATE_STATE_DIR` or `~/.claude/state`) is read-modify-written under one `flock`; `mark --deadline <5m…24h>` adds a hard deadline (T-3 and T printed by `brief --deadline`); `paused` exits 0 marked, 1 not, 2 on a marker it cannot parse; `lift` passes only the merge owner's session or the operator's plain terminal (the caller found by walking the process chain to pid 1, `sdk-*` seats refused), every path writing a rotate-ledger row with the tick's own append discipline; `woke` answers RESUME only after a lift, for 24 h, never for a migration lift, and lists the session's seeds and abandoned seats; one passwd-derived home for every verb.
+- Plan: `docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee/` T01a (W-6e656dac, D-1099); review receipt `docs/development/reviews/2026-10-21-plan-1-hibernate-full-guarantee-T01a-review.md`.
+
+### Fixed — the secret gate flags today's AWS key ids, every GitHub token prefix, fine-grained PATs and OpenAI project keys (2026-10-21)
+
+- `scripts/enforcement/check_secrets.py`: adds AWS `ASIA`/`ABIA`/`ACCA` key ids (case-sensitive base32), merges the `ghp_`/`gho_` rows into `gh[pousr]_`, adds `github_pat_` fine-grained PATs and OpenAI `sk-proj-`/`sk-svcacct-`/`sk-admin-` keys, keeping every old row so the gate stays a superset (D-1089; fabrik-lib mail 01M5EC2S14). `tests/test_check_secrets_shapes.py` pins each new and old shape.
 
 ### Changed — /fabrik-review-scoped: a seat reads the pin's own change.diff, a committed fix pins with --from, and a rewrap waits for the file's pinning tests (2026-10-21)
 

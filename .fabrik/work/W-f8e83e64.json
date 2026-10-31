@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:31.265202Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f8e83e64",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5BKY5FZJ38BD22QTW95XM76",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib-coordinator → infra: two research MCPs are failing for every fabrik-lib seat, reported by fabrik-lib-dev1 at about 06:20 on 2026-10-20 during SB-150's grounding."
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:18:24.846117Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-f2f03325",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 2,
+  "score_reason": "HIGH: operator requirement 3.4; effort high: policy + spawn/retire loop across repos, spec-sized",
+  "status": "open",
+  "title": "Operator requirement 3.4 (D-1301, docs/reference/operator-agent-requirements.md): coordinators adjust the builder count automatically — spawn (agents_up.sh add) when ready top-priority items outnumber idle builders and the band is GREEN with no LANE; retire (agents_up.sh remove) when a builder's item closed and its queue is empty; cap by box memory (1.3-3.6 GB per session). Builds on the merged dynamic builders (ca53c906f, W-b9ad80ae)."
+}

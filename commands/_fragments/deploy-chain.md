@@ -1,6 +1,6 @@
 ## The deploy chain — ORDER and REPO (this block is shared by every command in it)
 
-Six steps, one operator gate, two repos. **Run each step where its row says** — in the wrong repo a step cannot see its inputs (no
+Six steps, one approval gate, two repos. **Run each step where its row says** — in the wrong repo a step cannot see its inputs (no
 fleet creds, no `fabrik` CLI, no spec) or writes its output where the next step will never read it. Every
 command below ends by naming the next one.
 
@@ -10,8 +10,8 @@ command below ends by naming the next one.
 | 2 | `/fabrik-release` | the **PROJECT** | release readiness; its VPS path BLOCKs on a `DRAFT` contract; prints the Gate-2 handoff |
 | 3 | `/fabrik-deploy-plan` | the **HUB** (`/opt/fabrik`) for VPS surfaces · the **PROJECT** for store surfaces (mobile / extension / desktop) | `docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md` at `DRAFT`; reads the project's `--header` (`FROZEN v<N>`, `container_leg_service`) as a precondition |
 | 4 | `/fabrik-deploy-plan-review` | the same repo as the plan (HUB for VPS · PROJECT for stores) | the plan at `CONVERGED` |
-| — | **Gate 2** | the operator | an explicit "go" — nothing auto-chains across it |
-| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — operator-dispatched only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |
+| — | **Gate 2** | the Opus + Fable panel (own VPS, backup + rollback, not customer-facing) · the operator (customer-facing, stores, a split) | a go — nothing auto-chains across it |
+| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — dispatched on a Gate 2 go only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |
 | 6 | `/fabrik-deploy-verify` | the **HUB** (VPS surfaces; store surfaces hand back at Phase 0 with the provenance verdict) | `DEPLOY CONFIRMED` / `VERIFICATION FAILED` / `UNVERIFIED` — executes the FROZEN contract, one leg per site |
 
 Upstream of step 1: `/fabrik-features` REFRESH (the shipped inventory the contract cross-checks) → end-to-end

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:52:54.407664Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c4178957",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6295TS3C9FWP6VY16MKQ367",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the Stop hook's UNREVIEWED SPONTANEOUS WORK cause demands a full /fabrik-review-scoped (three seats, round 1 floor) for every hourly docs-only log commit of an agent whose charter is an hourly loop."
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:38.783605Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-4b351647",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5FEEMAJHNCPFAT6DN9HZ4G2, validate against current master, then fix or drop (proposed score: impact high, effort low — the Stop-hook DECISION harvest keeps only a turn's last block, so earlier operator gates are lost; a loop fix)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "the Stop-hook DECISION harvest keeps only a turn's last block, so earlier operator gates are lost; a loop fix",
+  "status": "open",
+  "title": "mail 01M5FEEMAJ (youtube): Stop-hook DECISION harvest mints only the LAST DECISION NEEDED block of a turn"
+}

@@ -12,10 +12,10 @@ coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**. This ch
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
-At every start, compact, resume and before any assignment, rebuild all three from records, never memory:
-NOW = the agent's live run record (`~/.claude/state/command-runs/`, stale by `updated_at`) and `ListAgents`; DONE = merges on master and items closed since you last looked; NEXT = its
-queued and claimed items (`work.py ready --all`, `work.py queue`). A stale record means ask the agent. Commit the store (`work.py commit-items`) on every change. One view: `python3 scripts/agent_status.py`
-(D-894).
+The duty and what NOW, DONE and NEXT mean are the coordinator paragraph's **Builders** sentence (D-1396). The hub adds: it covers
+every agent here, not only builders, and an agent with no record, or a stale one, is asked; the run record is `~/.claude/state/command-runs/`, stale by `updated_at`, read beside `ListAgents`;
+the queued and claimed items are `work.py ready --all` and `work.py queue`, and DONE counts merges on master. Commit the store
+(`work.py commit-items`) on every change. One view: `python3 scripts/agent_status.py` (D-894).
 
 ## Sort, validate, score and assign — automatically (D-887, D-890)
 
@@ -89,7 +89,7 @@ builder confirms no run will resume it, using a word from work.py's `_PLAN_STATU
 Before either, check each SHA or id its verdict cites (`git log -1 --format=%s <sha>`, `git log -E --grep='<id>\b'`).
 
 **Do:** merges (`scripts/merge_request.py merge`, `resume`/`retry <id>`; `merge --queue` until no request waits, D-1224,
-under `rund` 11200 / `capped_run` 11100, W-d5d1d394), then render + `--ratchet` + `--check` (commit `commands/_size_ceiling.json` if
+under `rund` 12100 / `capped_run` 12000, W-d5d1d394; W-fbd1d4b9 added the 900 s admission wait), then render + `--ratchet` + `--check` (commit `commands/_size_ceiling.json` if
 changed) when `commands/` changed, and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then the session named
 exactly as its role; fix a duplicate or missing role first.

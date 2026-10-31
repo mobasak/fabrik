@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:00:22.074631Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-079fd899",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M59WDCWBBC6KZ9E2CF2D5BHZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "check_env_vars.py's localhost ban flags docstring prose that documents an env-var default — 6 hits in three drivers red every branch that merges master"
+}

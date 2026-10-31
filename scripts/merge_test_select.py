@@ -6,7 +6,8 @@ Without an owner command ``merge_request.py`` runs only the ``tests/`` files a b
 repo-wide grader the branch broke but never edited (the hub-write-root search, the contract's line
 cites, a command's byte cap) ran nowhere until master was red: 29 red-master fixes in 25 days, the
 measured branches each red ALONE before they merged. This runs, in the merge's build tree, every
-test file that names a path the merge changed — by file name, module stem or directory — plus every
+test file that names a path the merge changed — by file name, module stem or directory; a review
+receipt by its file name only (RECEIPT) — plus every
 tree grader (a test running ``git ls-files``), in parallel shards, and refuses only a NEW red: one
 failing on the merge that passes on the base, is absent there, or fails there with another crash
 line. Master is not green on the full suite (16 ids red in a merge-shaped throwaway, 2026-10-24),
@@ -62,6 +63,10 @@ DURATIONS_FILE = "merge-tests-durations.txt"
 SKIP = re.compile(
     r"(CHANGELOG\.md|docs/DECISIONS\.md|INDEX\.md|docs/LESSONS_LEARNT\.md|\.fabrik/work/.*)"
 )
+# a review receipt rides almost every branch, and only a test that names its FILE reads one (W-1fb11ec8:
+# its directory keys selected ~25 files per merge, none of them a reader); it stays out of SKIP, so a
+# receipt still runs the tree graders and still counts as a change to the green-record re-test skip
+RECEIPT = re.compile(r"docs/development/reviews/[^/]*\.md")
 TEST_FILE = re.compile(r"tests/(?:.*/)?test_[^/]*\.py")
 # a directory spelled as a path segment in a test ("commands" / "_sources") selects only when its
 # name is specific; these four are named by most of the suite
@@ -86,6 +91,14 @@ _TMPNAME = re.compile(r"(?<=/)tmp[a-z0-9_]{8}(?![\w-])|(?<![\w./-])tmp[a-z0-9_]{
 _LEG_MARK = "#leg-failed"
 # The recording plugin: one JSON line per failed report (a collection error's id is the file), and
 # under FABRIK_MERGE_TESTS_DUR one line per report's duration, passed or failed (W-c832e59f).
+# Under FABRIK_MERGE_TESTS_UNTIL (a JSON file of node ids, W-c80361e4) an ordered re-run stops one
+# item past the last listed red: every file is still collected and the order up to there is the
+# shard's, so an earlier file's pollution still shows, and the listed item's teardown sees the
+# whole run's next item. The cut acts in pytest_collection_finish, on the order every
+# pytest_collection_modifyitems impl left: a cut inside that hook ran before some reorder — a
+# later-registered trylast impl, or any wrapper reordering after `yield` — and read a polluted red
+# green. Any input it cannot honour cuts nothing: a cut too early reads an order-dependent red
+# FLAKY, a false green; a cut not taken only costs the old whole-shard run.
 _PLUGIN = """
 import json, os
 
@@ -114,6 +127,29 @@ def pytest_runtest_logreport(report):
 def pytest_collectreport(report):
     if report.failed:
         _write(report, "collect")
+
+def _until():
+    path = os.environ.get("FABRIK_MERGE_TESTS_UNTIL")
+    if not path:
+        return None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            want = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if isinstance(want, list) and want and all(isinstance(x, str) for x in want):
+        return set(want)
+    return None
+
+def pytest_collection_finish(session):
+    want = _until()
+    items = session.items
+    ids = [item.nodeid for item in items]
+    if want and want <= set(ids):
+        keep = max(i for i, nid in enumerate(ids) if nid in want) + 2
+        if keep < len(items):
+            session.config.hook.pytest_deselected(items=items[keep:])
+            del items[keep:]
 """
 
 
@@ -142,18 +178,30 @@ def import_patterns(path: str) -> set[str]:
     pkg = r"\.".join(re.escape(m) for m in mod[:-1])
     return {
         rf"(?<![\w.]){pkg}\.{name}(?![\w])",
-        # inside parentheses anything up to the `)` (names, line breaks, comments); without them
+        # inside parentheses anything up to the `)` (names, line breaks, comments — possessive, or k
+        # comment lines cost ~40^k: 0.8 s at k=4); without them
         # one logical line: names, commas, blanks and backslash continuations, never a next statement
-        rf"\bfrom\s+{pkg}\s+import\s*(?:\((?:[^)#]|#[^\n]*)*?|(?:[ \t\w,]|\\\r?\n)*?)(?<![\w.]){name}(?![\w])",
+        rf"\bfrom\s+{pkg}\s+import\s*(?:\((?:[^)#]|#[^\n]*+)*?|(?:[ \t\w,]|\\\r?\n)*?)(?<![\w.]){name}(?![\w])",
     }
 
 
+def stem_pattern(path: str) -> str | None:
+    """The regex for ``path``'s stem as a key: whole word only, so `CLAUDE` (from CLAUDE.md) no longer
+    selects every test naming `CLAUDE_AGENT` and `compose` every one naming `docker compose` — measured
+    on master's last 60 merges, the substring form ran 9 more files (357 s serial) per merge, and the
+    D-1189 replay keeps 17 of 17 either way. A letter, digit or `_` on either side, a `-` after it, or a
+    `-` glued to a word before it (`docker-compose`) is part of another name; a `--<stem>` flag still is one."""
+    p = Path(path)
+    if len(p.stem) < MIN_STEM or p.stem == p.name:
+        return None
+    return rf"(?<!\w)(?<!\w-){re.escape(p.stem)}(?![\w-])"
+
+
 def keys_for(path: str) -> set[str]:
-    """The strings whose presence in a test's text selects it for a change to ``path``."""
+    """The strings whose presence in a test's text selects it for a change to ``path`` (its stem is
+    ``stem_pattern``'s, matched as a whole word)."""
     p = Path(path)
     keys = {p.name}
-    if len(p.stem) >= MIN_STEM:
-        keys.add(p.stem)
     parent = p.parent.as_posix()
     if parent not in (".", "tests") and parent not in GENERIC_DIRS:
         keys.add(parent + "/")
@@ -170,21 +218,61 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
     """``tests`` maps each test file to its text; returns the files to run, sorted."""
     keys: set[str] = set()
     mods: set[str] = set()
+    stems: dict[str, re.Pattern[str]] = {}
     picked = {p for p in changed if p in tests}
     for p in changed:
-        if not SKIP.fullmatch(p):
+        if RECEIPT.fullmatch(p):
+            keys.add(Path(p).name)
+        elif not SKIP.fullmatch(p):
             keys |= keys_for(p)
             mods |= import_patterns(p)
+            stem = stem_pattern(p)
+            if stem:
+                stems[Path(p).stem] = re.compile(stem)
     bounded = re.compile("|".join(sorted(mods))) if mods else None
+    graders: set[str] = set()
     if keys:
         for name, text in tests.items():
             if (
-                TREE_GRADER in text
-                or any(k in text for k in keys)
+                any(k in text for k in keys)
+                # the substring test first: the lookbehind regex alone doubled select()'s time over
+                # the 693 hub tests (3.4 -> 6.4 s for 5 changed paths)
+                or any(s in text and rx.search(text) for s, rx in stems.items())
                 or (bounded is not None and bounded.search(text))
             ):
                 picked.add(name)
-    return sorted(picked)
+            elif TREE_GRADER in text:
+                graders.add(name)
+    # importers are followed from the tests that name the change only: a tree grader is picked for any
+    # change, so following its importers added 19 files and +143 s serial per merge (60 merges measured)
+    return sorted(_with_test_importers(picked, tests) | graders)
+
+
+def _with_test_importers(picked: set[str], tests: dict[str, str]) -> set[str]:
+    """``picked`` plus every test that imports a picked test module, to a fixed point: a test reaching
+    the changed code through another test's helpers (test_merge_request_pretest.py imports World from
+    test_merge_request_merge.py, test_quota_dashboard_browser.py does `from tests import
+    test_quota_dashboard as base`) names neither the file nor a whole-word stem of it — the substring
+    stem rule caught it only by accident. An import statement on one line, its first word at the line
+    start: `from [pkg.]test_x import`, `import [pkg.]test_x[, …]`, `from <pkg> import [a, ]test_x`
+    (`.` and `tests` included). A parenthesised multi-line `from tests import (` is not followed."""
+    out = set(picked)
+    todo = set(picked)
+    while todo:
+        stems = sorted(Path(n).stem for n in todo)
+        alt = "|".join(re.escape(s) for s in stems)
+        importer = re.compile(
+            rf"^[ \t]*(?:from[ \t]+(?:[\w.]*\.)?(?:{alt})[ \t]+import\b"
+            rf"|(?:from[ \t]+[\w.]+[ \t]+)?import[ \t]+[^\n#]*(?<!\w)(?:{alt})(?!\w))",
+            re.M,
+        )
+        todo = {
+            n
+            for n, text in tests.items()
+            if n not in out and any(s in text for s in stems) and importer.search(text)
+        }
+        out |= todo
+    return out
 
 
 def normalise(msg: str) -> str:
@@ -553,7 +641,12 @@ class _Runner:
         self.dur_files: list[Path] = []
         self.totals: list[float] = []
 
-    def start(self, files: list[str]) -> tuple[subprocess.Popen, Path, Path]:
+    def start(
+        self, files: list[str], until: list[str] | tuple[str, ...] = ()
+    ) -> tuple[subprocess.Popen, Path, Path]:
+        """Start one pytest run over ``files``; ``until`` (node ids) stops it one item past the
+        last of them (the plugin's cut). The list rides in a file: an environment value is capped
+        at 128 KiB, which one polluter reddening ~2,000 later tests would pass."""
         self.n += 1
         rec = self.dir / f"rec-{self.n}.jsonl"
         rec.write_text("", encoding="utf-8")
@@ -567,6 +660,11 @@ class _Runner:
             "FABRIK_MERGE_TESTS_REC": str(rec),
             "FABRIK_MERGE_TESTS_DUR": str(dur),
         }
+        env.pop("FABRIK_MERGE_TESTS_UNTIL", None)  # an inherited cut never reaches a whole run
+        if until:
+            cut = self.dir / f"until-{self.n}.json"
+            cut.write_text(json.dumps(sorted(set(until))), encoding="utf-8")
+            env["FABRIK_MERGE_TESTS_UNTIL"] = str(cut)
         argv = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
         argv += [
             "--continue-on-collection-errors",
@@ -651,14 +749,17 @@ def _checkout(commit: str) -> None:
             raise LegError(f"`{' '.join(argv)}` refused: {(r.stderr or r.stdout).strip()}")
 
 
-def _parallel(runner: _Runner, groups: list[list[str]], what: str) -> dict:
-    """Each group in its own process, its files in order; the reds of all, or a LegError."""
+def _parallel(
+    runner: _Runner, groups: list[list[str]], what: str, until: list[list[str]] | None = None
+) -> dict:
+    """Each group in its own process, its files in order; the reds of all, or a LegError.
+    ``until``, aligned with ``groups``, is each group's cut (``_Runner.start``)."""
     started: list = []
     reds: dict = {}
     try:
-        for g in groups:  # started one by one, so a start that fails still has its elders reaped
+        for i, g in enumerate(groups):  # one by one: a start that fails still reaps its elders
             if g:
-                started.append(runner.start(g))
+                started.append(runner.start(g, until=until[i] if until else ()))
         for i, args in enumerate(started):
             rc, got, tail = runner.finish(*args)
             if rc not in RAN:
@@ -756,7 +857,10 @@ def differential(
         ordered = [g for g in groups if any(group_of[k] is g for k in first if k not in confirmed)]
         if compare:
             _checkout(merge)
-        again = _parallel(runner, ordered, "the ordered confirm of shard")
+        # each re-run stops just past the reds it is asked about (the plugin's cut, W-c80361e4):
+        # the shard's later tests cannot change an earlier red's outcome
+        cuts = [[k[0] for k in first if k not in confirmed and group_of[k] is g] for g in ordered]
+        again = _parallel(runner, ordered, "the ordered confirm of shard", cuts)
         confirmed.update({k: v for k, v in again.items() if k in first and k not in confirmed})
     flaky = sorted(k[0] for k in first if k not in confirmed)
     if flaky:
@@ -793,7 +897,14 @@ def differential(
         if base_ordered:
             _checkout(base)
             in_order = [_on_base(g, split) for g in base_ordered]
-            in_order_base = _parallel(runner, in_order, "the ordered base run of shard")
+            # cut at the order reds whose file (or split-file id) the base group still runs: one the
+            # base dropped would disable the cut for the whole group; an id gone from a file the base
+            # still has disables it all the same (no cut, the whole group: cost, never a false green)
+            cuts = [
+                [k[0] for k in by_order if group_of[k] is g and _owns(members, k[0])]
+                for g, members in zip(base_ordered, in_order, strict=True)
+            ]
+            in_order_base = _parallel(runner, in_order, "the ordered base run of shard", cuts)
             on_base.update({k: v for k, v in in_order_base.items() if k in by_order})
     except BaseException as exc:
         err = exc
@@ -805,7 +916,8 @@ def differential(
             if err is not None and not isinstance(err, Exception):
                 raise err from back  # an interrupt stays an interrupt; the restore failure rides along
             raise LegError(f"{err!r}; then {back}" if err else str(back)) from err
-    new, old = [], []
+    new: list[tuple] = []
+    old: list[tuple] = []
     for key, msg in sorted(confirmed.items()):
         was = on_base.get(key)
         (old if was is not None and normalise(was) == normalise(msg) else new).append((key, msg))
@@ -835,24 +947,38 @@ def main(argv: list[str] | None = None) -> int:
             # _base_alone re-runs this at the base, which is itself a merge commit as often as
             # not (4 of master's last 12 first-parent tips): a record for HEAD is what says so,
             # since only a refusal of a merge onto HEAD writes one, the moment before that re-run
-            if in_merge and (_record_path(head).exists() or len(parents) < 2):
-                return _base_alone(head, runner)
-            base = parents[0] if in_merge else _git("merge-base", "HEAD", "origin/master").strip()
-            if in_merge and not args.list:
-                green, why = _green_merge(head, parents)
-                if why:
-                    print(f"merge-tests: green record ignored ({why})")
-                delta = (
-                    _git("diff", "--name-only", "--no-renames", "-z", green, head) if green else ""
+            # merge_request's after-merge run (D-1186, W-3237ba45) tests HEAD against the last tip
+            # it tested, so one leg covers every merge landed since: no base-alone, no green skip
+            over = os.environ.get("FABRIK_MERGE_TESTS_BASE", "") if in_merge else ""
+            if over:
+                # a commit id only: it names the record file, and a range is not a merge's to skip
+                if not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", over):
+                    raise ValueError(f"FABRIK_MERGE_TESTS_BASE is not a commit id: {over[:60]!r}")
+                base = over
+            else:
+                if in_merge and (_record_path(head).exists() or len(parents) < 2):
+                    return _base_alone(head, runner)
+                base = (
+                    parents[0] if in_merge else _git("merge-base", "HEAD", "origin/master").strip()
                 )
-                if green and all(SKIP.fullmatch(p) for p in delta.split("\0") if p):
-                    _record_path(base).unlink(missing_ok=True)
-                    _record_green(head, parents)
-                    print(
-                        "merge-tests: re-test skipped — only ledger/work-item paths changed since the "
-                        f"green merge {green[:12]}\nmerge-tests: green in {time.monotonic() - t0:.0f}s"
+                if in_merge and not args.list:
+                    green, why = _green_merge(head, parents)
+                    if why:
+                        print(f"merge-tests: green record ignored ({why})")
+                    delta = (
+                        _git("diff", "--name-only", "--no-renames", "-z", green, head)
+                        if green
+                        else ""
                     )
-                    return 0
+                    if green and all(SKIP.fullmatch(p) for p in delta.split("\0") if p):
+                        _record_path(base).unlink(missing_ok=True)
+                        _record_green(head, parents)
+                        print(
+                            "merge-tests: re-test skipped — only ledger/work-item paths changed since "
+                            f"the green merge {green[:12]}\nmerge-tests: green in "
+                            f"{time.monotonic() - t0:.0f}s"
+                        )
+                        return 0
             if in_merge:  # until a verdict replaces it, any death reads as "measured nothing"
                 _write_record(base, [f"{_LEG_MARK}\tin-progress"])
             changed = [
@@ -885,7 +1011,8 @@ def main(argv: list[str] | None = None) -> int:
                 _write_record(base, [f"{nid}\t{when}" for (nid, when), _ in new])
             elif in_merge:
                 _record_path(base).unlink(missing_ok=True)
-                _record_green(head, parents)
+                if not over:
+                    _record_green(head, parents)
     except Exception as exc:  # noqa: BLE001 — every failure without a verdict is exit 3, said so
         if in_merge and base:
             try:

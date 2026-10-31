@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T18:57:00.853423Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-55172176",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6715AWN87RFS4K6M0YAMN5K",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra-2: idle under the P0-only pause (D-1377 report; my SendMessage to coordinator was HELD by its session, msg c83b7005). I hold no claim and no P0. My worktree is clean and pushed, no run record is open, no seat is in flight, and the self-watch is armed and re-bound. rotate infra-2: my context is"
+}

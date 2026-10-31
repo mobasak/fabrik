@@ -156,7 +156,11 @@ def pytest_configure(config):
         os.environ.pop(key, None)
     # A pretest or `merge --queue` leg exports FABRIK_MERGE_TESTS_RECORDS to redirect its OWN
     # records; inherited by the shards, it redirected the selector tests' records too (W-bce8914b).
-    os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
+    # The after-merge leg also exports FABRIK_MERGE_TESTS_BASE (its last tested tip, D-1382), which
+    # moved every selector test's base the same way (W-aa8c473c). FABRIK_MERGE_TESTS_DUR / _UNTIL
+    # stay: the leg's own recording plugin reads them inside the shard.
+    for key in ("FABRIK_MERGE_TESTS_RECORDS", "FABRIK_MERGE_TESTS_BASE"):
+        os.environ.pop(key, None)
     _install_fleet_guard()
     # A runaway test is killed past FABRIK_TEST_RSS_MAX, never the host: two WSL crashes on
     # 2026-10-17 came from one test process at ~32 GB (W-162398ef; tests/memguard.py).
@@ -210,6 +214,17 @@ def _reset_oauth_transport_latch():
         ):
             mod._oauth_transport_dead_at = None
     yield
+
+
+@pytest.fixture(autouse=True)
+def _isolated_merge_leg_dir(tmp_path, _private_monkeypatch):
+    """merge_request.py's box-wide leg admission (W-fbd1d4b9 part c) keeps its leases under
+    `~/.claude/state/merge-legs`: a test running a fake leg would queue behind the box's real merge
+    legs (up to LEG_ADMIT_WAIT_S) and hold a real slot from them. Every test gets its own dir."""
+    monkeypatch = _private_monkeypatch
+    legs = tmp_path / "merge-legs"
+    monkeypatch.setenv("FABRIK_MERGE_LEG_DIR", str(legs))
+    yield legs
 
 
 @pytest.fixture(autouse=True)
@@ -370,6 +385,13 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     # passes or fails on the box's state, not the code. A missing repo is the tier's fail-open path.
     monkeypatch.setenv("KAIZEN_TRANSCRIPT_ROOTS", str(tmp_path / "transcripts"))
     monkeypatch.setenv("KAIZEN_WASTE_GIT_REPO", str(tmp_path / "no-git-repo"))
+    # The generated-output state of scripts/commit_generated.py (W-5568be8d): every daily() a grader
+    # drives commits through it, and a write there would land in the operator's real ~/.claude/state.
+    monkeypatch.setenv("FABRIK_GENERATED_STATE", str(tmp_path / "generated-output.json"))
+    # The merge tripwire (W-622ec42c) runs in the same daily() pass and WRITES beside the repo's merge
+    # records (`.git/fabrik-merge/tripwire*`) and can mail: without this a grader's daily() wrote the
+    # live hub's coordinator line. A missing repo is the tripwire's fail-open path.
+    monkeypatch.setenv("MERGE_TRIPWIRE_REPO", str(tmp_path / "no-git-repo"))
     # The harness scratch root (scratch lifecycle plan, Phase A): `start` mints a run folder under
     # `<root>/<slug>/<sid>/scratchpad/` and the sweep removes consumed ones — never the live
     # /tmp/claude-<uid>. The hub module `start` loads for that is the tree under test, not /opt/fabrik.

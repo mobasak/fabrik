@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:54.955588Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fe1a6797",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5GWF6SDZ8REBZVBAEBG9R34",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: final_gate.py's semgrep leg scans a hardcoded `src/` root. youtube has no `src/` directory, so whenever semgrep finishes inside its 30s budget the gate fails with \"[ERROR] Invalid scanning root: src\". When it times out instead, the gate skips it. Either way the leg never scans youtube's code."
+}

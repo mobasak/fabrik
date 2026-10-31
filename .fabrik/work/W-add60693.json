@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:51:47.344881Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-add60693",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M693KZZJX6RRVQ8Z4T4BE4NW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: worktree-builder-tmpfix"
+}

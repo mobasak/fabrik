@@ -235,10 +235,9 @@ published into the kaizen log's `Filed (spec/mail)` cell as `N filed / N none / 
 All three verdicts ride the cell on purpose: `0 filed` alone reads like a quiet week, while
 `0 filed / 0 none / 9 unstated` reads like nine runs where nobody was asked.
 
-⚠️ `Filed` is an ANALYST cell. `_merge_cells` was corrected first so a real value the analyst typed
-always wins and the computed value only FILLS an empty cell — `kaizen.md:202` promises these are
-never overwritten by a re-run, and the previous rule only honoured that while nothing computed
-them.
+⚠️ `Filed` is an ANALYST cell: which value a re-run keeps is `kaizen.md`'s log-row table (the
+`Filed (spec/mail)` row) — `_merge_cells` lets the analyst's text win and refreshes only the
+collector's own bare count.
 | `terminator_spam` | `rules_compliance` | final_block_emitted / closures | T06 collector |
 | `premature_stop_rate` | `first_attempt_gate_pass` | EVENT-level stop verdicts | T06 collector |
 | `first_attempt_gate_pass` | `premature_stop_rate` | sessions, first gate_run | T06 collector |

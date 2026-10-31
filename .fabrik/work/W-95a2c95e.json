@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:49.804632Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-95a2c95e",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M68ZBCKWM10G2HT99AHCMPY4, validate against current master, then fix or drop (proposed score: impact low, effort low — agents_up.sh add checks the role charter on disk, not on the base branch)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "agents_up.sh add checks the role charter on disk, not on the base branch",
+  "status": "open",
+  "title": "mail 01M68ZBCKW (fabrik): agents_up.sh add: role charter checked on disk, not on the base branch; an unmarked own charter silently blocks the fallback"
+}

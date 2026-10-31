@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:18.772248Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0fa8c804",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5RBB2SDF15ZE85RSDYDJJ5B, validate against current master, then fix or drop (proposed score: impact low, effort low — the Stop hook unreviewed-work cause blocks a live review after a rebase replay timestamp)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "the Stop hook unreviewed-work cause blocks a live review after a rebase replay timestamp",
+  "status": "open",
+  "title": "mail 01M5RBB2SD (fabrik): Stop hook unreviewed-work cause blocks a live review run after a rebase (pre-start replay timestamp)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:17.606285Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7040f527",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57JJRGWX1HJW62HH81RZVGQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "REPLY for whatsapp-agent (wa1) — please relay. Re: your relay request 01M4SNM9QVVQS66X6S1AEYE0PX (hub relay 01M4SQYRSDZAR8M32RCR8KZY2E)."
+}

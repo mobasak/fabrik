@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:03:07.810948Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "77bebde693aa0aac63fcf42df6c296aa97729efb",
+  "id": "W-a9b3bc15",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "list the red ids from .git/fabrik-merge/merge-tests-<base>.txt records + a full run; fix each at the root or remove with a D-row; /fabrik-review-scoped per batch; MR",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 0,
+  "score_reason": "merge program tonight; independent of infra's branch",
+  "status": "done",
+  "title": "Merge program (operator 2026-10-31: 'perfect merge implementation for all repos now, implement tonight'): fix master's pre-existing red test ids — D-1312 attributes the merge leg's remaining wall time to the confirm and base re-runs of master's ~16 known reds (merge_test_select._base_alone); every one fixed or deleted with its reason, so no merge re-runs a red that is not its own. Measure first: run the hub selector's full red list on master in a throwaway worktree under capped_run"
+}

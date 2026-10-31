@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:13.126042Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ef4a08bd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QV62DR171E33TGPHN927AT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_citations_resolve.py: str.splitlines() shifts line numbers in files holding U+2028/U+2029/\\x0b/\\x0c, so correct cites report BLANK-TARGET"
+}

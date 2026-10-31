@@ -44,11 +44,13 @@ import json
 import math
 import os
 import re
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -90,6 +92,29 @@ REQUEST_WORST_S = (
     + 5
     + 17 * TMUX_TIMEOUT_S
 )
+# W-e38f8ee7: the --move path's own waits. The pane command comes from agents_up.sh --pane-cmd (its resolver, the
+# ledger read and the slice ceiling, measured 1-3 s, bounded at 60 s); after `respawn-pane -k` the old claude gets
+# OLD_EXIT_S to exit by itself on the pane's SIGHUP, then SIGTERM and OLD_TERM_S, then SIGKILL and OLD_KILL_S.
+PANE_CMD_TIMEOUT_S = 60
+OLD_EXIT_S = 10
+OLD_TERM_S = 5
+OLD_KILL_S = 2
+# The worst --move request: the pane command, the last re-read, the reap, the launch wait (CLEAR_WAIT_S), the agents
+# lock and the re-bind grace; 5 s of loop sleeps after their last checks; and 8 tmux calls past any deadline (resolve 1,
+# run_checks' box read 1, the last re-read's two box reads 2, the respawn 1, and the reap, launch and re-bind loops do
+# none — 3 spare for the box reads run_checks' dialog branch may add). Under REQUEST_WORST_S, so CLAIM_CUTOFF_S holds.
+MOVE_WORST_S = (
+    PANE_CMD_TIMEOUT_S
+    + DISCARD_RECHECK_S
+    + OLD_EXIT_S
+    + OLD_TERM_S
+    + OLD_KILL_S
+    + CLEAR_WAIT_S
+    + AGENTS_LOCK_WAIT_S
+    + REBIND_GRACE_S
+    + 5
+    + 8 * TMUX_TIMEOUT_S
+)
 # `execute` claims no new request after this long, so the last request it starts ends inside the unit's
 # TimeoutStartSec=600 with at least 60 s to spare (20 + 517 + 60 <= 600), the git calls above aside. A file left unclaimed
 # stays for the path unit, which starts `execute` again when this one exits; two requests can only meet in one run by
@@ -115,6 +140,7 @@ FIELDS = {
     "last_compact_age_s",
 }
 OPTIONAL = {"stale_text", "operator_ok"}  # --stale-input discard (W-ee19169d): both or neither
+MOVE_FIELD = "into"  # --move (W-e38f8ee7): present exactly when mode == "move"
 TRIGGERS = ("ctx", "mb", "unrelated", "compact", "manual", "lift")
 _NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
 _PANE = re.compile(r"%[0-9]{1,6}")
@@ -975,23 +1001,7 @@ def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
     working directory is not `repo` itself (the coordinator's own pane); each pane once, by id. [] when no grid exists;
     RuntimeError when tmux fails otherwise or the shared `budget` (seconds) runs out."""
     deadline = time.monotonic() + budget
-    fmt = "#{pane_id}\t#{session_name}\t#{session_group}\t#{@agent}\t#{pane_current_path}"
-    out = _grid_tmux(deadline, "list-panes", "-a", "-F", fmt)
-    if out is None:
-        return []
-    home, grid = Path(repo).resolve(), slug(repo)
-    panes: dict[str, str] = {}
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if len(parts) != 5:
-            continue
-        pane, session, group, agent, path = parts
-        if (group or session) != grid or not agent or agent == exclude:
-            continue
-        with contextlib.suppress(OSError):
-            if path and Path(path).resolve() == home:
-                continue
-        panes[pane] = agent
+    panes = _builder_panes(deadline, repo, exclude)
     found = []
     for pane, agent in panes.items():
         screen = _grid_tmux(deadline, "capture-pane", "-p", "-e", "-t", pane)
@@ -1013,6 +1023,94 @@ def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
             }
         )
     return found
+
+
+def _builder_panes(deadline: float, repo: str, exclude: str) -> dict[str, str]:
+    """{pane id: agent} of `repo`'s agents_up grid inside the caller's `deadline` — `waiting()`'s filter, shared with
+    the builder watch (W-c814836f): its session or session group is `slug(repo)`, it carries an `@agent` other than
+    `exclude`, its working directory is not `repo` itself; each pane once, by id. {} when no grid exists; RuntimeError
+    as `_grid_tmux` raises it."""
+    fmt = "#{pane_id}\t#{session_name}\t#{session_group}\t#{@agent}\t#{pane_current_path}"
+    out = _grid_tmux(deadline, "list-panes", "-a", "-F", fmt)
+    if out is None:
+        return {}
+    home, grid = Path(repo).resolve(), slug(repo)
+    panes: dict[str, str] = {}
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 5:
+            continue
+        pane, session, group, agent, path = parts
+        if (group or session) != grid or not agent or agent == exclude:
+            continue
+        with contextlib.suppress(OSError):
+            if path and Path(path).resolve() == home:
+                continue
+        panes[pane] = agent
+    return panes
+
+
+def builder_panes(repo: str, exclude: str = "", budget: float = 1.0) -> dict[str, str]:
+    """`_builder_panes` with its own deadline `budget` seconds away (the builder watch, the per-prompt arm check)."""
+    return _builder_panes(time.monotonic() + budget, repo, exclude)
+
+
+# The builder watch's busy reading (W-c814836f), over a `capture-pane -p` screen (no `-e`: a dim cell would be text the
+# watch must still see). Measured on 23 live panes 2026-10-31: a running turn draws a spinner row — one glyph, a label
+# of a word or a few, `…`, then ` (<time> · …)` (or nothing yet) — and a finished one a `· done` row, whatever note
+# follows it; leftover background shells are IDLE (counting them hid an idle builder 2 h). The `…` alone is no signal:
+# every idle pane's status hint is truncated with one. Seat rows (`◯ <name>  …`) and a monitor count are read only in
+# the footer below the input box, so a transcript that quotes one never pins a pane busy. Fail direction: a spinner
+# shape nobody drew yet reads IDLE — a false wake, never a pane hidden as busy.
+# the spinner glyph is one of Claude Code's own frames (measured: · ✢ ✳ ✶ ✻ ✽, and `*`), never any glyph: a notice
+# truncated with `…` (`✘ Auto-update fail…`, `⚠ Context low · Run /compact…`) or a reply bullet (`- Checking files…`)
+# alone on a row would otherwise hide an idle builder as busy (review C-1/C-2)
+_SPIN_ROW = re.compile(r"^\s*[·✢✳✶✻✽*]\s+[^\s…()][^…()]{0,40}…(?:\s*\(|\s*$)")
+_WAIT_ROW = re.compile(
+    r"^\s*[·✢✳✶✻✽*]\s+Waiting for \d+ background"
+)  # a spinner row, never quoted text (review Ch-5)
+_SEAT_ROW = re.compile(r"^\s*◯\s+\S+\s{2,}")
+_MONITORS = re.compile(r"\b\d+ monitors?\b")
+
+
+def pane_state(screen: str) -> tuple[bool, str]:
+    """(busy, turn id) of one pane screen. The screen splits at its LAST framed input box (a `❯` row under a `─` rule,
+    closed by the next `─` rule): above it, scanning up, the first spinner or `Waiting for N background` row is BUSY and
+    the first `_TURN_END` row met first is IDLE; below the closing rule a seat row or a monitor count is BUSY. With no
+    box drawn the whole screen is "above" and the footer rules do not apply. The turn id is the last turn-end row cut at
+    its `done <time>` (`_TURN_ID`), "" when none is on screen — a new id is a turn that ended since the last look."""
+    rows = [r.rstrip() for r in screen.splitlines()]
+    starts = [
+        i
+        for i, r in enumerate(rows)
+        if i > 0 and r.lstrip().startswith("❯") and rows[i - 1].strip().startswith("─")
+    ]
+    above, below = rows, []
+    if starts:
+        top = starts[-1] - 1
+        end = next(
+            (i for i in range(starts[-1] + 1, len(rows)) if rows[i].strip().startswith("─")),
+            len(rows) - 1,
+        )
+        above, below = rows[:top], rows[end + 1 :]
+    # a turn end wrapped on a narrow pane leaves `· 1` on its row and `shell still running` on the next: the row
+    # matches on its own, and the cut at `done <time>` drops the note either way
+    turn = ""
+    for row in reversed(above):
+        if _TURN_END.match(row.strip()):
+            m = _TURN_ID.match(row.strip())
+            turn = (m.group(0) if m else row.strip()).strip()
+            break
+    busy = False
+    for row in reversed(above):
+        if _SPIN_ROW.match(row) or _WAIT_ROW.search(row):
+            busy = True
+            break
+        if _TURN_END.match(row.strip()):
+            break
+    if any(_SEAT_ROW.match(r) or _MONITORS.search(r) for r in below):
+        busy = True
+    return busy, turn
 
 
 # ── request ───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1065,6 +1163,56 @@ def _last_compact_age(path: Path) -> int | None:
     return None
 
 
+def _config_dir(proc: Path, home: Path, pid: int) -> Path:
+    """The claude process's CLAUDE_CONFIG_DIR (its environ), else ~/.claude — where it files its transcripts."""
+    with contextlib.suppress(OSError):
+        for kv in (proc / str(pid) / "environ").read_bytes().split(b"\0"):
+            if kv.startswith(b"CLAUDE_CONFIG_DIR="):
+                return Path(kv.split(b"=", 1)[1].decode(errors="replace"))
+    return home / ".claude"
+
+
+def _worktree_dir(repo: str, folder: str) -> Path:
+    return Path(os.path.realpath(repo)) / ".claude" / "worktrees" / folder
+
+
+def move_target(t: dict, repo: str) -> str:
+    """W-e38f8ee7: the worktree a --move starts the builder in — DERIVED from its session record's cwd, never typed
+    (D-1284 derives folders from evidence): the linked worktree in place under the repo's .claude/worktrees/ that holds
+    the cwd. Refused (`args`, permanent) when the cwd is in none, when that tree is a coordinator's, and when the session
+    is already filed under it (agents_up.sh's `holds()`: the grid already starts it there — the file's existence, never
+    `_transcript`'s returned name, which is one of several hard-linked names)."""
+    wtroot = Path(os.path.realpath(repo)) / ".claude" / "worktrees"
+    cwd = os.path.realpath(t["cwd"]) if t.get("cwd") else ""
+    rel = os.path.relpath(cwd, wtroot) if cwd else ".."
+    folder = rel.split(os.sep, 1)[0]
+    if folder in ("", ".", "..") or not _NAME.fullmatch(folder):
+        raise CheckFailedError(
+            "args",
+            f"{t['name']}'s cwd {cwd or '(none)'} is not inside a linked worktree of {repo}",
+            transient=False,
+        )
+    d = wtroot / folder
+    if not (d.is_dir() and (d / ".git").is_file() and os.path.realpath(d) == str(d)):
+        raise CheckFailedError(
+            "args",
+            f"{folder} is not a linked git worktree in place under {wtroot}",
+            transient=False,
+        )
+    if folder == "coordinator" or folder.endswith("-coordinator"):
+        raise CheckFailedError("args", f"{folder} is the coordinator's tree", transient=False)
+    proj = (
+        _config_dir(_proc(), _home(), t["pid"]) / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(d))
+    )
+    if (proj / f"{t['sid']}.jsonl").exists():
+        raise CheckFailedError(
+            "args",
+            f"{t['name']} already starts in .claude/worktrees/{folder} — nothing to move",
+            transient=False,
+        )
+    return folder
+
+
 def request(
     name: str,
     repo: str,
@@ -1072,10 +1220,14 @@ def request(
     trigger: str,
     stale: bool = False,
     operator_ok: str = "",
+    move: bool = False,
 ) -> int:
-    mode = "compact" if compact is not None else "clear"
+    mode = "move" if move else "compact" if compact is not None else "clear"
     stale_text = ""
+    into = ""
     try:
+        if move and (compact is not None or stale or operator_ok):
+            raise CheckFailedError("args", "--move takes neither --compact nor --stale-input")
         if trigger not in TRIGGERS:
             raise CheckFailedError("args", f"trigger must be one of {', '.join(TRIGGERS)}")
         if compact is not None and not _focus_ok(compact):
@@ -1094,6 +1246,8 @@ def request(
                 "pending", "one rotation at a time — wait for the pending request's row"
             )
         t = resolve(name, repo)
+        if move:
+            into = move_target(t, repo)
         if stale:
             box, screen = _box_now(t["pane"])
             if _dialog(screen):
@@ -1144,6 +1298,8 @@ def request(
     }
     if stale_text:  # optional fields: an ordinary request stays readable by an older unit
         data.update(stale_text=stale_text, operator_ok=operator_ok)
+    if move:  # an older unit refuses it (`refused:request`): it never runs a move it cannot do
+        data[MOVE_FIELD] = into
     dest = _req_dir() / f"{slug(repo)}--{name}.json"
     tmp = _req_dir() / f".{slug(repo)}--{name}.tmp"
     tmp.write_text(json.dumps(data), encoding="utf-8")
@@ -1351,8 +1507,18 @@ def resume_prompt(name: str) -> str:
 
 
 def _validate(data: object) -> dict:
-    if not isinstance(data, dict) or not FIELDS <= set(data) <= FIELDS | OPTIONAL:
+    if not isinstance(data, dict) or not FIELDS <= set(data) <= FIELDS | OPTIONAL | {MOVE_FIELD}:
         raise CheckFailedError("request", "malformed request file")
+    # W-e38f8ee7: `into` rides on a move request only, and a move request carries a folder name; a move never discards
+    if (data.get("mode") == "move") != (MOVE_FIELD in data) or (
+        MOVE_FIELD in data
+        and (
+            not isinstance(data[MOVE_FIELD], str)
+            or not _NAME.fullmatch(data[MOVE_FIELD])
+            or set(data) & OPTIONAL
+        )
+    ):
+        raise CheckFailedError("request", "bad move request (into)")
     if set(data) & OPTIONAL and not (
         set(data) >= OPTIONAL
         and isinstance(data["stale_text"], str)
@@ -1376,7 +1542,7 @@ def _validate(data: object) -> dict:
         raise CheckFailedError("request", "created_at is not a finite time in the past")
     if not _NAME.fullmatch(str(data["name"])) or not _PANE.fullmatch(str(data["pane"])):
         raise CheckFailedError("request", "bad name or pane")
-    if data["mode"] not in ("clear", "compact") or data["trigger"] not in TRIGGERS:
+    if data["mode"] not in ("clear", "compact", "move") or data["trigger"] not in TRIGGERS:
         raise CheckFailedError("request", "bad mode or trigger")
     if data["mode"] == "compact" and not _focus_ok(str(data["focus"])):
         raise CheckFailedError("request", "bad focus")
@@ -1418,7 +1584,21 @@ def _one(claimed: Path) -> dict:
             raise CheckFailedError(
                 "resolve", "the pane, its claude or its session changed since the request"
             )
+        cmd, new_sid = "", ""
+        if data["mode"] == "move":
+            row["into"] = data[MOVE_FIELD]
+            # the folder again from the live cwd: a builder that changed trees since the request is not moved
+            if move_target(t, data["repo"]) != data[MOVE_FIELD]:
+                raise CheckFailedError(
+                    "resolve", "the builder's worktree changed since the request"
+                )
+            new_sid = str(uuid.uuid4())
+            cmd = _pane_cmd(
+                t, data, new_sid
+            )  # BEFORE the checks: the kill must follow the last one closely
         path = run_checks(t, stale_text)
+        if data["mode"] == "move":
+            _settled(t, path)
         if stale_text:
             box = _box_now(t["pane"])[0]
             # a blank or redrawing frame is no reading — never paste behind unseen text (review r1)
@@ -1436,6 +1616,8 @@ def _one(claimed: Path) -> dict:
         row["outcome"] = "stale" if check == "stale" else f"refused:{check}"
         row["reason"] = exc.reason if isinstance(exc, CheckFailedError) else str(exc)
         return row
+    if data["mode"] == "move":
+        return _move(data, row, cmd, new_sid)
     step = "send"
     try:
         sent_at = time.time()
@@ -1478,29 +1660,188 @@ def _one(claimed: Path) -> dict:
         step = "resume"
         row["resume_sent_at"] = int(time.time())
         _send(data["pane"], resume_prompt(data["name"]))
-        step, deadline = "rebind", time.time() + _wait_s(REBIND_GRACE_S)
-        while time.time() < deadline:
-            hit = [
-                r
-                for r in _bindings()
-                if r.get("session_id") == new_sid and r.get("name") == data["name"]
-            ]
-            if hit:
-                row["predecessor_row"] = hit[-1].get("predecessor") == data["sid"]
-                at = hit[-1].get("at")
-                if isinstance(at, (int, float)) and not isinstance(at, bool) and math.isfinite(at):
-                    row["rebind_s"] = (
-                        int(at) - row["resume_sent_at"]
-                    )  # the bind's own time, not when it was seen
-                row["outcome"] = "ok"
-                return row
-            time.sleep(1)
-        row["predecessor_row"] = False
-        row["outcome"] = "partial:rebind"
-        return row
+        step = "rebind"
+        return _await_rebind(data, row, new_sid)
     except Exception as exc:  # noqa: BLE001 — after a key is sent the outcome is recorded, never retried
         unsent = isinstance(exc, CheckFailedError) and exc.check == "unsent"
         row["outcome"] = f"typed-unsent:{step}" if unsent else f"partial:{step}"
+        row["reason"] = str(exc)
+        return row
+
+
+def _await_rebind(data: dict, row: dict, new_sid: str) -> dict:
+    """The new session's whoami binding, within REBIND_GRACE_S of `row["resume_sent_at"]`: `ok`, else `partial:rebind`."""
+    deadline = time.time() + _wait_s(REBIND_GRACE_S)
+    while time.time() < deadline:
+        hit = [
+            r
+            for r in _bindings()
+            if r.get("session_id") == new_sid and r.get("name") == data["name"]
+        ]
+        if hit:
+            row["predecessor_row"] = hit[-1].get("predecessor") == data["sid"]
+            at = hit[-1].get("at")
+            if isinstance(at, (int, float)) and not isinstance(at, bool) and math.isfinite(at):
+                row["rebind_s"] = (
+                    int(at) - row["resume_sent_at"]
+                )  # the bind's own time, not when it was seen
+            row["outcome"] = "ok"
+            return row
+        time.sleep(1)
+    row["predecessor_row"] = False
+    row["outcome"] = "partial:rebind"
+    return row
+
+
+def _signal(pid: int, sig: int) -> None:
+    """os.kill, behind a name the tests replace: a --move reaps one exact pid."""
+    os.kill(pid, sig)
+
+
+def _reap(pid: int, start: str) -> str:
+    """W-e38f8ee7: `respawn-pane -k` only hangs the pane up, and a process that ignores SIGHUP outlives it (measured by
+    the Opus critique seat on a scratch tmux). So the replaced claude — that pid AND that start time, never a reused pid
+    — gets OLD_EXIT_S to exit, then SIGTERM and OLD_TERM_S, then SIGKILL and OLD_KILL_S: `gone`, `term`, `kill`, or
+    `survived` (said in the row: an orphan claude with no pane). Its detached children (a self-watch, MCP servers) are
+    not reaped, as `agents_spawn.remove` reaps none."""
+    proc = _proc()
+
+    def alive() -> (
+        bool
+    ):  # that pid, that start time, and not a zombie (exited, its parent yet to reap it)
+        try:
+            rest = (proc / str(pid) / "stat").read_text().rsplit(")", 1)[1].split()
+        except (OSError, IndexError):
+            return False
+        return len(rest) > 19 and rest[19] == str(start) and rest[0] != "Z"
+
+    for label, wait, sig in (
+        ("gone", OLD_EXIT_S, signal.SIGTERM),
+        ("term", OLD_TERM_S, signal.SIGKILL),
+        ("kill", OLD_KILL_S, None),
+    ):
+        deadline = time.time() + _wait_s(wait)
+        while alive():
+            if time.time() >= deadline:
+                break
+            time.sleep(0.2)
+        else:
+            return label
+        if sig is None:
+            return "survived"
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            _signal(pid, sig)
+    return "survived"
+
+
+def _pane_cmd(t: dict, data: dict, new_sid: str) -> str:
+    """W-e38f8ee7: the ONE pane command a move respawns with — agents_up.sh `--pane-cmd … --into … --from … --replacing`
+    (its cmd_of, never a copy). It runs from the fabrik-rotate unit, so the pane's own PATH, AGENT_IDENTITY_FILE and
+    XDG_RUNTIME_DIR (the env-i set agents_up gave the claude it replaces, read from /proc) stand in for the unit's,
+    and the moved pane carries what the grid gave it. Any refusal raises `launch`: nothing has been touched yet."""
+    pane: dict[str, str] = {}
+    with contextlib.suppress(OSError):
+        for kv in (_proc() / str(t["pid"]) / "environ").read_bytes().split(b"\0"):
+            k, sep, v = kv.partition(b"=")
+            if sep:
+                pane[k.decode(errors="replace")] = v.decode(errors="replace")
+    env = dict(os.environ)
+    for k in ("PATH", "AGENT_IDENTITY_FILE", "XDG_RUNTIME_DIR"):
+        if k in pane:
+            env[k] = pane[k]
+        elif (
+            k == "AGENT_IDENTITY_FILE"
+        ):  # the grid ran with the default store: so must the moved pane
+            env.pop(k, None)
+    argv = [
+        str(_agents_spawn()._agents_up_path()),
+        "--pane-cmd",
+        data["repo"],
+        data["name"],
+        new_sid,
+        "--into",
+        data[MOVE_FIELD],
+        "--from",
+        data["sid"],
+        "--replacing",
+        str(data["pid"]),
+    ]
+    try:
+        out = subprocess.run(
+            argv, capture_output=True, text=True, timeout=PANE_CMD_TIMEOUT_S, env=env
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CheckFailedError(
+            "launch", f"agents_up.sh --pane-cmd took over {PANE_CMD_TIMEOUT_S} s"
+        ) from exc
+    except OSError as exc:
+        raise CheckFailedError("launch", f"agents_up.sh --pane-cmd: {exc}") from exc
+    lines = out.stdout.splitlines()
+    if out.returncode != 0 or len(lines) != 1 or not lines[0].strip():
+        why = (out.stderr.strip().splitlines() or [f"exit {out.returncode}, {len(lines)} line(s)"])[
+            -1
+        ]
+        raise CheckFailedError("launch", why)
+    return lines[0]
+
+
+def _settled(t: dict, path: Path) -> None:
+    """W-e38f8ee7: the last look before `respawn-pane -k`, which KILLS a turn where a /clear typed into one only queues:
+    the input box empty and the transcript unwritten across two reads DISCARD_RECHECK_S apart (`_discard`'s pattern),
+    so nothing slower than one tmux call sits between the last check and the kill."""
+    try:
+        seen = [(_box_now(t["pane"])[0], path.stat().st_mtime)]
+        time.sleep(DISCARD_RECHECK_S)
+        seen.append((_box_now(t["pane"])[0], path.stat().st_mtime))
+    except OSError as exc:
+        raise CheckFailedError("idle", f"transcript unreadable ({exc})") from exc
+    if seen[0][1] != seen[1][1]:
+        raise CheckFailedError("idle", "the transcript was written during the last re-read")
+    if any(box != "" for box, _ in seen):
+        raise CheckFailedError("screen", "the input box was not empty at the last re-read")
+    # a turn that started during run_checks' own git calls wrote its first row BEFORE the two reads above, which then
+    # agree (review pass 1, A-C1): the turn end must still be the transcript's last real row
+    try:
+        _idle_row_check(_tail_rows(path, 2 * 1024 * 1024))
+    except OSError as exc:
+        raise CheckFailedError("idle", f"transcript unreadable ({exc})") from exc
+
+
+def _move(data: dict, row: dict, cmd: str, new_sid: str) -> dict:
+    """The move's keys-free half, after every check passed: respawn, reap, wait for the new session, re-point, re-bind.
+    After the respawn the outcome is recorded, never retried."""
+    step = "respawn"
+    row["new_sid"] = new_sid
+    try:
+        d = _worktree_dir(data["repo"], data[MOVE_FIELD])
+        out = _tmux("respawn-pane", "-k", "-t", data["pane"], "-c", str(d), cmd)
+        if out.returncode != 0:
+            raise CheckFailedError("respawn", out.stderr.strip() or f"tmux exited {out.returncode}")
+        row["resume_sent_at"] = int(time.time())  # the first prompt is the launch's own argument
+        step = "reap"
+        row["old_exit"] = _reap(data["pid"], data["proc_start"])
+        step, deadline, seen = "launch", time.time() + _wait_s(CLEAR_WAIT_S), False
+        while time.time() < deadline and not seen:
+            for f in hib._session_files(_home()):
+                with contextlib.suppress(OSError, ValueError):
+                    rec = json.loads(f.read_text(encoding="utf-8"))
+                    seen = seen or (isinstance(rec, dict) and rec.get("sessionId") == new_sid)
+            if not seen:
+                time.sleep(1)
+        if not seen:
+            row["outcome"] = "partial:launch"
+            return row
+        # the pane runs the new session now, bound or not — re-point before anything else can fail (W-b72231b8)
+        reg_file = _session_registry(data["repo"], data["sid"])
+        row["registry"] = (
+            "refused:repo"
+            if reg_file is None
+            else _repoint_registry(reg_file, data["sid"], new_sid, data["name"])
+        )
+        step = "rebind"
+        return _await_rebind(data, row, new_sid)
+    except Exception as exc:  # noqa: BLE001 — after the respawn the outcome is recorded, never retried
+        row["outcome"] = f"partial:{step}"
         row["reason"] = str(exc)
         return row
 
@@ -1706,6 +2047,11 @@ def main(argv: list[str] | None = None) -> int:
     rq = sub.add_parser("request")
     rq.add_argument("name")
     rq.add_argument("--compact", metavar="FOCUS")
+    rq.add_argument(
+        "--move",
+        action="store_true",
+        help="respawn the pane with a fresh session in the worktree the builder works in (W-e38f8ee7)",
+    )
     rq.add_argument("--trigger", default="manual")
     rq.add_argument("--repo", default="")
     rq.add_argument(
@@ -1741,7 +2087,9 @@ def main(argv: list[str] | None = None) -> int:
     if not repo:
         print("rotate-session: not inside a git repo — pass --repo", file=sys.stderr)
         return 2
-    return request(a.name, repo, a.compact, a.trigger, a.stale_input == "discard", a.operator_ok)
+    return request(
+        a.name, repo, a.compact, a.trigger, a.stale_input == "discard", a.operator_ok, move=a.move
+    )
 
 
 if __name__ == "__main__":

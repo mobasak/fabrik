@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:00:23.684287Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-49c3581c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5B15Y5D3MQWW1B05DEX9RH5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "relay — fabrik-lib competitor-intel SB-008 (brief incompleteness note under a non-empty MATCH list) for the hub's vendored libs/competitor_intel"
+}

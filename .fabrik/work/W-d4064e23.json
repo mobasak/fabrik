@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:18.083478Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d4064e23",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5RBB2SDF15ZE85RSDYDJJ5B",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook unreviewed-work cause blocks a live review run after a rebase (pre-start replay timestamp)"
+}

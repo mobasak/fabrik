@@ -7,13 +7,19 @@ Reads the posture file the rotation tick writes (`_quota_posture` in
 
 * **`UserPromptSubmit`** — prints ONE line to stdout, which the CLI lands as context:
   ``QUOTA: <slug> · 5h <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% ·
-  band <GREEN|AMBER|RED|WALL> · successor <slug or none>[[ · band LANE on 5h — builders park, coordinators continue] · ⚠️ CHECKPOINT NOW …]``.
+  band <GREEN|AMBER|RED|WALL> · successor <slug or none>[[ · band LANE on 5h — builders park, coordinators continue] · ⚠️ CHECKPOINT NOW …]``,
+  where ``5h <n>% (<forecast>)`` reads ``5h retired`` for an account whose usage payload has
+  retired the 5-hour window (D-1400).
 * **`PreToolUse`** — at RED, HOLDS the two things that START new work: the ``Agent``
   tool outside a live run record, and a fresh ``command_run.py start`` outside the
   review family. Everything a checkpoint needs — edits, tests, git, ``done``,
   ``round``, mail, Monitor, TaskStop — stays allowed, so RED is finish-and-checkpoint,
   never freeze. At AMBER it says so ONCE per (session, band) through
-  ``additionalContext``, carrying no permission decision at all.
+  ``additionalContext``, carrying no permission decision at all. While a ``/hibernate``
+  pause is marked and not lifted (``hibernate.json``, read inline — W-6e656dac, spec L2)
+  it holds ``Agent`` and EVERY ``command_run.py start``, the review family included, for
+  every session, live run or not, ahead of the stamp and posture checks — so neither the
+  ``hibernate`` tier nor a missing posture reopens intake.
 
 ⚠️ **BOX-LOCAL, NOT FLEET-SYNCED.** `--install` wires this into the user-level
 ``settings.json`` files — one per fleet account dir plus the top-level one, enumerated at
@@ -84,6 +90,7 @@ import hashlib
 import json
 import math
 import os
+import pwd
 import re
 import shlex
 import shutil
@@ -103,7 +110,8 @@ _RUN_RECORD_STALE_H_DEFAULT = 12.0
 _TAIL_BYTES = 64 * 1024
 _ROTATE = "/opt/fabrik/scripts/sysadmin/claude_rotate.py"
 _REMEDY = f"run python3 {_ROTATE} --status"
-_READ_ERRORS = (OSError, ValueError)
+# RecursionError: `json.loads` of deeply nested brackets raises it, and this hook must never raise
+_READ_ERRORS = (OSError, ValueError, RecursionError)
 
 # ── local copies (NEVER an import of scripts/command_run.py) ────────────────────────
 # This runs on EVERY tool call in EVERY window on this box. Importing a 1,000-line CLI
@@ -199,7 +207,7 @@ def _load_posture(now: float) -> tuple[dict | None, str]:
             raw,
             parse_constant=lambda c: (_ for _ in ()).throw(ValueError(f"non-finite: {c}")),
         )
-    except ValueError:
+    except (ValueError, RecursionError):  # deeply nested JSON must read as unreadable, never raise
         return None, "unreadable"
     ts = data.get("ts") if isinstance(data, dict) else None
     if not (isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts)):
@@ -319,6 +327,72 @@ def _wall_stamp_stands() -> bool:
     return _live_tier() == _STAMP_TIER_WALLED
 
 
+# ── the hibernate pause (W-6e656dac, spec L2) ──────────────────────────────────────
+
+
+def _marker_path() -> Path:
+    """The pause marker, resolved as `hibernate.py` resolves it (Interface M): `$ROTATE_STATE_DIR/hibernate.json` when
+    set, else `<passwd home>/.claude/state/hibernate.json` — the passwd home, never `$HOME`."""
+    raw = os.environ.get("ROTATE_STATE_DIR")
+    if raw:
+        return Path(raw) / "hibernate.json"
+    return Path(pwd.getpwuid(os.getuid()).pw_dir) / ".claude" / "state" / "hibernate.json"
+
+
+def _marker_num(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    v = float(value)
+    return v if math.isfinite(v) else None
+
+
+def _pause_marked() -> bool:
+    """True exactly when `hibernate.py paused` would exit 0 — a COPY of `.claude/hooks/quota_stop.py::_pause_marked`
+    (read inline, never an import of `hibernate.py`), graded against `paused` in `tests/test_hibernate_hooks.py`.
+    Every unreadable or corrupt shape is UNMARKED: this hook fails open, always. The WHOLE body is inside
+    `except Exception` — this runs on EVERY tool call, so a crash here (a 400-digit int overflowing `float()`, deep
+    nesting raising RecursionError) exited 1 and opened the RED `Agent` hold too (review J1, executed)."""
+    try:
+        p = _marker_path()
+        if not p.is_file():  # before the read: a FIFO blocks forever, and a hang is not an OSError
+            return False
+        m = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(m, dict):
+            return False
+        at = _marker_num(m.get("paused_at"))
+        if at is None:
+            return False
+        for key in ("lifted_at", "deadline_at"):
+            if m.get(key) is not None and _marker_num(m[key]) is None:
+                return False
+        lifted = _marker_num(m.get("lifted_at"))
+        return lifted is None or lifted < at
+    except Exception:
+        return False
+
+
+def _pause_intake(tool: str, command: object) -> str | None:
+    """What a marked pause holds — the two dispatch tools (`Agent`, `Workflow`) and every `command_run.py start` (the
+    review family INCLUDED) — or None. From the mark nothing new is dispatched on any session, live run or not."""
+    if tool in ("Agent", "Workflow"):
+        return f"The {tool} tool"
+    is_start, name = _is_new_run_start(command)
+    if is_start:
+        return f"Starting /{name or '<unnamed>'}"
+    return None
+
+
+def _pause_reason(what: str) -> str:
+    return (
+        f"HIBERNATE PAUSE — a /hibernate pause is marked and not lifted. {what} is held for every session: "
+        "from the mark nothing new is dispatched (a seat already running finishes; a subagent returns now with "
+        "its partial result). Finish your step, commit and push with explicit pathspecs, and close your run "
+        "record with a seed (`command_run.py blocked --paused` or `handoff`), naming every seat still running. "
+        "`python3 /opt/fabrik/scripts/sysadmin/hibernate.py paused` exits 1 once the pause is lifted; after the "
+        "wake run `python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke`."
+    )
+
+
 def _tick_fresh(now: float) -> bool:
     """The freshness `quota_stop.py` gates its hold on, read the same way (COPIED — that hook is
     standalone): the tick log (`QUOTA_STOP_TICK_LOG`, default `~/.claude/rotate-tick.log`) moved
@@ -342,7 +416,15 @@ def _tick_fresh(now: float) -> bool:
 # ── the line ───────────────────────────────────────────────────────────────────────
 
 
+def _retired(w: object) -> bool:
+    """A 5h window the account's usage payload has RETIRED (D-1400, `claude_rotate._is_retired`):
+    it has no percentage, forecast or burn, so every renderer prints `retired` instead."""
+    return isinstance(w, dict) and w.get("retired") is True
+
+
 def _pct(w: object) -> str:
+    if _retired(w):
+        return "retired"
     u = w.get("utilization") if isinstance(w, dict) else None
     ok = isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)
     return f"{u:.0f}%" if ok else "—"
@@ -421,7 +503,8 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
         u = _util(w)
         if u is not None:
             parts.append(f"{label} {_pct(w)} {w.get('slug') or '?'}")
-            if hottest is None or u > hottest[0]:
+            # a retired window's 0.0 is a stand-in: it never names the window that binds
+            if not _retired(w) and (hottest is None or u > hottest[0]):
                 hottest = (u, label)
         elif scarce and key != "fable" and key not in fw:
             # an unserved REQUIRED window (key ABSENT: no account can serve it) is why the band is
@@ -506,8 +589,10 @@ def _format_line(
     succ = fleet.get("successor")
     succ_slug = succ.get("slug") if isinstance(succ, dict) else None
     fh, wk = wins.get("five_hour"), wins.get("seven_day")
+    # a RETIRED 5h window (D-1400) has no forecast: the whole clause is `5h retired`
+    fh_s = "5h retired" if _retired(fh) else f"5h {_pct(fh)} ({_forecast(fh)})"
     return (
-        f"QUOTA: {act.get('slug') or '—'} · 5h {_pct(fh)} ({_forecast(fh)}) · "
+        f"QUOTA: {act.get('slug') or '—'} · {fh_s} · "
         f"weekly {_pct(wk)} ({_forecast(wk)}) · Fable {_pct(wins.get('fable'))} · "
         f"band {band or '?'}{_fleet_clause(posture, band, is_fable=is_fable)} · "
         f"successor {succ_slug or 'none'}" + clause
@@ -555,7 +640,7 @@ def _session_model(transcript_path: object) -> str | None:
     for line in reversed(lines):
         try:
             entry = json.loads(line)
-        except ValueError:
+        except (ValueError, RecursionError):  # a deeply nested line must not crash the hook
             continue
         if isinstance(entry, dict) and entry.get("type") == "assistant":
             msg = entry.get("message")
@@ -924,7 +1009,7 @@ def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False)
         )
     elif fw:
         best = max(
-            ((k, fw[k]) for k in keys if _util(fw.get(k)) is not None),
+            ((k, fw[k]) for k in keys if _util(fw.get(k)) is not None and not _retired(fw.get(k))),
             key=lambda kv: _util(kv[1]),
             default=None,
         )
@@ -1147,7 +1232,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         payload = json.load(sys.stdin)
-    except (ValueError, OSError):
+    except (ValueError, OSError, RecursionError):
         return 0  # unreadable payload — never block on our own defect
     if not isinstance(payload, dict):
         return 0  # a non-object payload is not ours to judge
@@ -1177,14 +1262,32 @@ def main(argv: list[str] | None = None) -> int:
     if event != "PreToolUse":
         return 0
 
+    # ⚠️ the pause is read BEFORE the stamp and the posture (W-6e656dac, spec L2): the early return
+    # below fires for a walled stamp — which the `hibernate` tier reads as — and for a missing
+    # posture, and neither may reopen intake while a pause is marked. `quota_stop.py` admits every
+    # `command_run.py` subcommand, `start` included, so this is the only hook that holds a start.
+    ti = payload.get("tool_input")
+    tool = str(payload.get("tool_name") or "")
+    command = ti.get("command") if isinstance(ti, dict) else None
+    if _pause_marked() and (what := _pause_intake(tool, command)) is not None:
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": _pause_reason(what),
+                    }
+                }
+            )
+        )
+        return 0
+
     # ⚠️ the stamp is read BEFORE the band, so a lagging RED posture can never produce a
     # second deny for a call `quota_stop.py` is already denying
     if _wall_stamp_stands() or posture is None:
         return 0
     band, is_fable = _band_for_session(posture, payload.get("transcript_path"))
-    tool = str(payload.get("tool_name") or "")
-    ti = payload.get("tool_input")
-    command = ti.get("command") if isinstance(ti, dict) else None
     sid = payload.get("session_id")
     action, what = decide(band, tool, command, sid=sid, stamp=False)
     # ⚠️ Any band that is NOT amber clears this session's amber marker, which does two jobs with one

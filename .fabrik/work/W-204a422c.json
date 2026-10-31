@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:34.769343Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-204a422c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66ATHY3PNSTB925C3G5M6WS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: MCP health finding from web-ecommerce-factory (wef1, 2026-10-30): mcp_health.py reports all 13 servers live, but the exa key check returned HTTP 401 (key unverified) and firecrawl reports 0 credits remaining."
+}

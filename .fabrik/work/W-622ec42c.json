@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:03:08.071734Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "0b94979b48e92d3d627e6e8b2d4ee5798cf19f28",
+  "id": "W-622ec42c",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find the existing kaizen_waste series and the merge records; one script + a cron line in the daily pipeline; /fabrik-review-scoped; MR",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 0,
+  "score_reason": "merge program tonight; the measure is kaizen's beat",
+  "status": "done",
+  "title": "Merge program (operator 2026-10-31: 'implement tonight'): the tripwire — a daily measure of (1) merge wall time per request from the merge records ('green in N s' + record start/landed), (2) refusals by class, (3) the red-master series (kaizen_waste.waste_red_master_rework) before and after the post-merge valve (D-1384); rendered as one line in the coordinator's prompt block or a dashboard row, and a mail to the coordinator when the red-master series rises for 7 days (the D-1384 tripwire that puts the threshold back to 40)"
+}

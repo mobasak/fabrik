@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:46.636087Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-856b9306",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5K1YQQDQTPE3QE3YYGDXFD1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "recurrence of 01M4Y3N9GW (D-836 run scratch unwritable from a linked worktree) — a youtube /fabrik-task close on 2026-10-22"
+}

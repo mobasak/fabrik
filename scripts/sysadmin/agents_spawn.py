@@ -11,7 +11,8 @@ coordinator's verb; `agents_up.sh add` dispatches here. Every `add` for one repo
                          root, a capped start (or FABRIK_AGENTS_UNCAPPED=1), and >= 2 GB slice headroom
     (2) the worktree   — `.claude/worktrees/<name>` on `worktree-<name>` from the base branch's tip
     (3) cold start     — no tmux session: `agents_up.sh --detach <root>` (exit 0 restored the grid: wait for it to
-                         settle; exit 3 no builder: step 6 starts the grid with the new one)
+                         settle; exit 4 the grid is up but some builder got no pane: said, then as 0 — unless the
+                         new builder is one of them; exit 3 no builder: step 6 starts the grid with the new one)
     (4) the binding    — `whoami_agent.py --spawned` under the held lock; plus the registry row where one exists
     (5) the item       — `work.py assign <W-id> --owner <name>` on the main checkout, never committed here
     (6) place + launch — adoption, the registry heal, headroom again after a cold start, then the one pane command
@@ -725,9 +726,11 @@ def _spawn_facts(ctx: Spawn) -> dict[str, str]:
 
 def cold_start(ctx: Spawn) -> None:
     """D2 (3), D4: when the repo has no tmux session, `agents_up.sh --detach <root>` first. Exit 0 restored every
-    registered builder (wait for them to settle; step 6 measures again); exit 3 had no builder and started nothing
-    (step 6 runs --detach again once the binding exists); any other exit stops `add` here with its stderr. A re-run
-    whose earlier add already bound the name (an unstarted spawn the grid will now start) passes its facts too."""
+    registered builder (wait for them to settle; step 6 measures again); exit 4 restored the grid but some builder got
+    no pane — its "no room" lines go to stderr and the add goes on as for 0, unless the builder being added is one of
+    them, which refuses (review G2); exit 3 had no builder and started nothing (step 6 runs --detach again once the
+    binding exists); any other exit stops `add` here with its stderr. A re-run whose earlier add already bound the
+    name (an unstarted spawn the grid will now start) passes its facts too."""
     sess = session_name(ctx.root)
     try:
         up = _has_session(sess)
@@ -738,7 +741,16 @@ def cold_start(ctx: Spawn) -> None:
     bound = ctx.settle = _settle_s()
     spawn = _spawn_facts(ctx) if _bound_sid(ctx) else None
     out = _agents_up(3, "--detach", ctx.root, spawn=spawn)
-    if out.returncode == 0:
+    if out.returncode == 4:
+        noroom = [ln for ln in out.stderr.splitlines() if ln.startswith("agents_up: no room for ")]
+        if any(ln.startswith(f"agents_up: no room for {ctx.name}'s pane") for ln in noroom):
+            raise RefusedError(
+                f"agents_up.sh --detach exited 4 and gave {ctx.name} no pane: {chr(10).join(noroom)}",
+                3,
+            )
+        for ln in noroom:
+            print(ln, file=sys.stderr)
+    if out.returncode in (0, 4):
         ctx.cold = "up"
         print(f"agents_spawn: step 3 — no {sess} session: the grid was started with its builders")
         _settle(ctx.root, bound)

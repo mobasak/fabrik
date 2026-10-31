@@ -1680,6 +1680,7 @@ def test_the_posture_copy_agrees_with_quota_stop_on_every_stamp_shape(tmp_path, 
         "1\nwalled\n",
         "1\nurgent-90\n",
         "1\nbattery\n",
+        "1\nhibernate\n",
         "1\n",
         "1\nbogus\n",
         "1\r\nwalled\r\n",
@@ -1713,3 +1714,93 @@ def test_amber_says_nothing_to_an_api_key_session_and_green_adds_no_clause(tmp_p
     red = tmp_path / "red"
     _posture(red, band="RED", successor=None)
     assert "Anthropic API key" in _hook(ups, state=red, extra_env=key).stdout
+
+
+def test_quota_line_five_hour_retired(tmp_path):
+    """D-1400 (W-992979e1) — an account whose usage payload retired the 5-hour window prints
+    `5h retired` for the whole clause (no percentage, no forecast), and a retired fleet reading
+    says so too without becoming the window that binds."""
+    state = tmp_path / "state"
+    retired = {
+        "utilization": 0.0,
+        "resets_at": None,
+        "wall_pct": 100.0,
+        "burn_per_min": None,
+        "minutes_to_wall": None,
+        "minutes_to_reset": None,
+        "verdict": "unknown",
+        "retired": True,
+    }
+    _posture(
+        state,
+        slug="sarp",
+        band="AMBER",
+        five_hour=retired,
+        fleet_windows={
+            "five_hour": {"utilization": 0.0, "slug": "sarp", "wall": 100.0, "retired": True},
+            "seven_day": {"utilization": 96.0, "slug": "mob", "wall": 100.0},
+        },
+        fleet_measured=2,
+    )
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state)
+    line = p.stdout.strip()
+    assert line.startswith("QUOTA: sarp · 5h retired · weekly 44% (reset in 2:10) · "), line
+    assert "(fleet-wide: 5h retired sarp · weekly 96% mob)" in line, line
+    assert "band AMBER on weekly" in line, "a retired 0.0 never names the binding window"
+    assert "5h 0%" not in line and "no burn" not in line.split(" · weekly")[0], line
+
+
+def test_a_retired_window_never_binds_at_a_tie_nor_in_the_deny_reason(tmp_path):
+    """Review pass 1 (W-992979e1): at a weekly 0.0 tie the fleet clause names weekly, never the
+    retired 5h visited first; and the deny reason never picks the retired stand-in as the coolest."""
+    state = tmp_path / "state"
+    fw = {
+        "five_hour": {"utilization": 0.0, "slug": "sarp", "wall": 100.0, "retired": True},
+        "seven_day": {"utilization": 0.0, "slug": "mob", "wall": 100.0},
+    }
+    doc = _posture(state, slug="sarp", band="AMBER", fleet_windows=fw, fleet_measured=2)
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state)
+    assert "band AMBER on weekly" in p.stdout, p.stdout
+    mod = _load()
+    doc["fleet"]["windows"] = {
+        "five_hour": {"utilization": 0.0, "slug": "sarp", "wall": 100.0, "retired": True},
+        "seven_day": {"utilization": 0.0, "slug": "mob", "wall": 100.0},
+    }
+    # a tie at 0.0: `max` keeps the first key it meets, which is the retired 5h without the filter
+    reason = mod._deny_reason(doc, "RED", "Agent")
+    assert "coolest account that can still serve seven_day is mob at 0%" in reason, reason
+    assert "sarp at retired" not in reason
+
+
+def test_a_deeply_nested_transcript_or_record_line_never_raises(tmp_path):
+    """Review pass 1 (W-992979e1): `json.loads` raises RecursionError on deeply nested brackets —
+    neither the transcript reader nor the run-record reader may let it out of the hook."""
+    mod = _load()
+    t = tmp_path / "t.jsonl"
+    t.write_text("[" * 30000 + "]" * 30000 + "\n")  # under the 64 KiB tail window
+    assert mod._session_model(str(t)) is None
+    # the posture file on every prompt and every tool call, and the hook's own stdin payload
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "quota-posture.json").write_text("[" * 30000 + "]" * 30000)
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state)
+    assert p.returncode == 0 and "posture unavailable (unreadable" in p.stdout, (p.returncode, p.stdout, p.stderr[-300:])
+    env = dict(os.environ, ROTATE_STATE_DIR=str(state))
+    deep = subprocess.run(
+        [sys.executable, str(HOOK)], input="[" * 30000 + "]" * 30000, capture_output=True,
+        text=True, env=env, timeout=30,
+    )
+    assert deep.returncode == 0 and "Traceback" not in deep.stderr, deep.stderr[-300:]
+    # the run-record reader (`_READ_ERRORS`): a deeply nested record reads as no live run
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "s1.json").write_text("[" * 30000 + "]" * 30000)
+    old = os.environ.get("COMMAND_RUN_DIR")
+    os.environ["COMMAND_RUN_DIR"] = str(runs)
+    try:
+        assert mod._has_live_run("s1") is False
+    finally:
+        if old is None:
+            os.environ.pop("COMMAND_RUN_DIR", None)
+        else:
+            os.environ["COMMAND_RUN_DIR"] = old

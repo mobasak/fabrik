@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T17:33:03.091173Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-36e7b997",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M626402WWT0CCHG7R3J8V3RT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Rotation due: 0 agent(s) in fabrik past the rotation line, 1 unread"
+}

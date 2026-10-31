@@ -59,27 +59,28 @@ Prometheus (rules) → Alertmanager → Telegram (native telegram_configs)
 > **ARO Brain (planned):** LLM-based alert triage. When deployed, add as a primary
 > receiver routed before `telegram`, with `telegram` as the fallback.
 
-### Prometheus Alert Rules (15 total, 5 groups)
+### Prometheus Alert Rules (16 total, 5 groups)
 
-Source of truth: `configs/prometheus/rules/alerts.yml` (12 rules, 4 groups) + `configs/prometheus/rules/fabrik-drift.yml` (3 rules, group `fabrik-registrar-drift`; rules 14-15 reach vps1 at plan-2 rollout R0 — until then vps1 runs 13). There are no Promtail/log-based alert rules.
+Source of truth: `configs/prometheus/rules/alerts.yml` (13 rules, 4 groups) + `configs/prometheus/rules/fabrik-drift.yml` (3 rules, group `fabrik-registrar-drift`; rules 15-16 reach vps1 at plan-2 rollout R0, and ContainerCPUThrottled (row 3) at the next `scripts/sync_prometheus_to_vps.sh --push`). There are no Promtail/log-based alert rules.
 
 | # | Alert | Group | Severity | Threshold | For |
 | --- | --- | --- | --- | --- | --- |
 | 1 | ContainerDown | container_health | critical | not seen >2min | 2m |
 | 2 | ContainerHighCPU | container_health | warning | >80% | 5m |
-| 3 | ContainerHighMemory | container_health | warning | working set >85% of limit | 15m |
-| 4 | ContainerMemoryHighOfHost | container_health | warning | working set >15% of its own host's RAM (containers without a limit) | 10m |
-| 5 | ContainerOOMKilled | container_health | critical | any OOM in 5m | 0m |
-| 6 | ContainerRestarting | container_health | critical | >3 in 15m | 0m |
-| 7 | HostHighCPU | host_health | warning | >85% | 10m |
-| 8 | HostHighMemory | host_health | critical | >90% | 5m |
-| 9 | HostDiskFull | host_health | critical | >85% | 5m |
-| 10 | ServiceUnhealthy | service_health | critical | `up == 0` | 2m |
-| 11 | AroWakeLowSuccessRate | aro_wake | warning | low success rate | 15m |
-| 12 | AroWakeCostBurnHigh | aro_wake | warning | cost burn >$5/h per host | 10m |
-| 13 | FabrikRegistrarDrift | fabrik-registrar-drift | warning | `fabrik_audit_drift_total > 0` | 10m |
-| 14 | FabrikRegistryHealFailed | fabrik-registrar-drift | warning | `max by (spec_id, db) (fabrik_registry_heal_failed) > 0` | 2h |
-| 15 | FabrikAuditStale | fabrik-registrar-drift | warning | last clean audit run >3h old, or none recorded | 5m |
+| 3 | ContainerCPUThrottled | container_health | warning | throttled in >25% of CFS periods while running >1 period/s | 15m |
+| 4 | ContainerHighMemory | container_health | warning | working set >85% of limit | 15m |
+| 5 | ContainerMemoryHighOfHost | container_health | warning | working set >15% of its own host's RAM (containers without a limit) | 10m |
+| 6 | ContainerOOMKilled | container_health | critical | any OOM in 5m | 0m |
+| 7 | ContainerRestarting | container_health | critical | >3 in 15m | 0m |
+| 8 | HostHighCPU | host_health | warning | >85% | 10m |
+| 9 | HostHighMemory | host_health | critical | >90% | 5m |
+| 10 | HostDiskFull | host_health | critical | >85% | 5m |
+| 11 | ServiceUnhealthy | service_health | critical | `up == 0` | 2m |
+| 12 | AroWakeLowSuccessRate | aro_wake | warning | low success rate | 15m |
+| 13 | AroWakeCostBurnHigh | aro_wake | warning | cost burn >$5/h per host | 10m |
+| 14 | FabrikRegistrarDrift | fabrik-registrar-drift | warning | `fabrik_audit_drift_total > 0` | 10m |
+| 15 | FabrikRegistryHealFailed | fabrik-registrar-drift | warning | `max by (spec_id, db) (fabrik_registry_heal_failed) > 0` | 2h |
+| 16 | FabrikAuditStale | fabrik-registrar-drift | warning | last clean audit run >3h old, or none recorded | 5m |
 
 All applicable rules include `value` annotations for ARO Brain quantitative reasoning.
 
@@ -257,7 +258,7 @@ Generalises the Authelia weekly cron to all 10 audited registrars at hourly cade
 
 **Roundtrip-verified live 2026-05-16:** synthetic drift fired Telegram in 11 minutes; resolution (`fabrik_audit_drift_total=0`) cleared the alert within 90 seconds via Alertmanager `send_resolved: true`.
 
-**Registry reconcile (plan-2, D-498/D-500).** After the audit loop the same run calls `src/fabrik/registry_reconcile.py`: each postgres result of `drift` with the database present and no `allocations.json` entry is registered additively, in-lock, never overwriting or deleting. The mode is `FABRIK_REGISTRY_RECONCILE` on the cron line — `report` (default) dry-runs, `apply` writes, `off` skips (`docs/CONFIGURATION.md` § Scheduled audits). A database two specs claim is `shared` and never written; a run in which a spec failed to load or audit, or a database spec's name failed to resolve, fails every candidate as `claims-unresolved`; no owner role in `pg_database`, no write. A registered spec is re-audited in the same run, so its drift series clears in that push. The push is now a `PUT`, which replaces the whole `fabrik-audit` group each run, and carries:
+**Registry reconcile (plan-2, D-498/D-500).** After the audit loop the same run calls `src/fabrik/registry_reconcile.py`: each postgres result of `drift` with the database present and no `allocations.json` entry is registered additively, in-lock, never overwriting or deleting. The mode is `FABRIK_REGISTRY_RECONCILE` on the cron line — `report` (default) dry-runs, `apply` writes, `off` skips (`docs/CONFIGURATION.md` § Scheduled audits); while a `/hibernate` pause is marked and not lifted (`hibernate.py paused` exit 0, W-6e656dac) `apply` runs as `report`. A database two specs claim is `shared` and never written; a run in which a spec failed to load or audit, or a database spec's name failed to resolve, fails every candidate as `claims-unresolved`; no owner role in `pg_database`, no write. A registered spec is re-audited in the same run, so its drift series clears in that push. The push is now a `PUT`, which replaces the whole `fabrik-audit` group each run, and carries:
 
 - `fabrik_registry_heal_total{spec_id,db,outcome}` — one per candidate: `registered`, `already-present`, `would-register`, `shared` or `failed`;
 - `fabrik_registry_heal_failed{spec_id,db,reason}` — one per failed heal (`claims-unresolved`, `owner-unresolved`, `db-name-missing`, or the exception class);

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-27T14:15:02.691968Z",
   "creator": "coordinator",
-  "effort": "low",
+  "effort": "high",
   "evidence": "",
   "id": "W-d87cebbb",
   "impact": "high",
@@ -15,9 +15,12 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-3",
   "priority": 0,
-  "score_reason": "URGENT-class: every agent on the box blocked twice; capped_run.sh is infra's beat",
+  "score_reason": "P0 incident; infra is busy on P0 W-f4ce5c6b at 95% context, infra-3 idle after rotation",
   "status": "open",
+  "tags": [
+    "waits-sigterm-wave"
+  ],
   "title": "Box-wide SIGTERM waves 16:43:20 and 17:02:09 on 2026-10-27: every WSL process (tmux agent grids, code-server, docker, user+system services) got SIGTERM, kernel+systemd survived; both waves 6-10 s after wef3's background capped_run.sh -- npm --prefix sites/bhdtrade run check (astro check); agents_up and the All Agents .bat cleared; find the sender"
 }

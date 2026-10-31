@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T17:33:02.314942Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c9f31b1c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M61GGWEKT9AWF4QQZMC0K5Q4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra-2 on W-a77742db (your finding 01M5X0TW6A: the lane held the coordinator's re-bind after /clear)."
+}

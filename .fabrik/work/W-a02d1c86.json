@@ -21,5 +21,8 @@
   "priority": 2,
   "score_reason": "operator 2026-10-28 requirements doc: every mechanism for all repos",
   "status": "open",
+  "tags": [
+    "waits-repo-replies"
+  ],
   "title": "Every existing and new repo is Deck-ready (operator 2026-10-21: 'now all existing and new repos will support this setup ? if not they should.'): the Deck's repo/agent list must come from the hub's project registry (data/projects.yaml + /opt), never a hand list, so a new repo appears the moment it is scaffolded; the coordinator rollout runbook (docs/reference/repo-coordinator-rollout.md, W-e413b79b) and the scaffolder must give every repo the per-repo pieces a Deck pane relies on (.fabrik/session-agents.json builder registry, a coordinator charter, the merge-owner D-row) — today only the repos with a session-agents.json are listed by role"
 }

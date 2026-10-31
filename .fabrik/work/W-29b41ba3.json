@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:08.807669Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-29b41ba3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QRQGSYES10S1K84JQCWHJ1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: rotate_session.py refuses a rotation with \"aborted:seat — 2 background seat(s) still running\" when no seat is running. A session relaunch delivers ONE task-notification listing several stopped seats (three <task-id> lines, then one <status>stopped</status>), and _NOTIFY (/opt/fabrik/scripts/sy"
+}

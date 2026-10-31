@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:24.492265Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-aacebf5a",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5XN4997CYBZ4G6XWZ2JZCFK, validate against current master, then fix or drop (proposed score: impact low, effort low — web-ecommerce-factory asks that agent_status.py and decisions.py ship through the governance sync; a manifest change)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "web-ecommerce-factory asks that agent_status.py and decisions.py ship through the governance sync; a manifest change",
+  "status": "open",
+  "title": "mail 01M5XN4997 (web-ecommerce-factory): ship scripts/agent_status.py and scripts/decisions.py through the governance sync — the gate reformats the byte copies"
+}

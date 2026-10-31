@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:13.295752Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4bd1c645",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M567ZHPVM8853ZX8SNB3AM0A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py start --resume-from should also take a handoff resume file, so a rotated run keeps its rounds (/fabrik-review feedback row 1792261780)"
+}

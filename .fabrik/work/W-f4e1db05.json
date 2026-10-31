@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T01:50:14.883195Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-f4e1db05",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M657P8E4HAVCGQHEZB0QGQ2D",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-landing-window"
+}

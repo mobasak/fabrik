@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T16:26:50.460944Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-5c4fb417",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one /fabrik-command-improve-style edit to commands/_fragments/review-probe-catalogue.md § Seat isolation after the review-scoped run of 2026-10-29 (commits 055537756..2996336b9) merges",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "Probe catalogue node_modules lead-duty sentence: 3 recorded edge cases (UNPINNED for an outside tree its own lockfile installed; proving a run writes nothing beyond the vite cache, e.g. node_modules/.cache, postinstall; which package manager runs a manifest-only install, packageManager field)"
+}

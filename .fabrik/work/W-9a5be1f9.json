@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T19:45:56.309704Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-9a5be1f9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M674X2VSCQ7XGZ9MKHW90WZE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the operator runs 'All Agents (tabbed).bat' (regenerated 22:29 by agents_bat.py --tabbed into Desktop\\terminal agents) and every tab opens BLACK; no tab ever attaches (tmux list-sessions: attached=0 on every session after the run)."
+}

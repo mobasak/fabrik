@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:01:36.897278Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "8c66ad75f5829231416e4c2bebe9014d185babff",
+  "id": "W-f4ce5c6b",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "merge_request.py: the after-merge red title builder and the reply composer; test with a 5 KB parametrize id",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "the oversized reply strands merge record 01M690NBSH at phase refused; every resume retries the same 102 KB body, so the merge owner's Stop hook blocks until it is fixed",
+  "status": "done",
+  "title": "after-merge red titles and merge replies carry FULL test ids; a parametrize id thousands of '[' long (tests/test_merge_test_select.py::test_a_bad_duration_record_is_ignored_not_fatal[...]) made the refusal reply to kaizen 102 KB, over mail.py's 64 KB cap, so the builder never learned why its MR 01M690NBSH was refused (merge_request: PARTIAL). Truncate each id (e.g. 160 chars + '…') in the red item title and in every reply body, and grade it with a long-id fixture"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:49.683032Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-2a850817",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5MT23K7BZ7S3N67RENJ51WH, validate against current master, then fix or drop (proposed score: impact low, effort low — /fabrik-spec-review asks review_receipt.py --init support; small)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "/fabrik-spec-review asks review_receipt.py --init support; small",
+  "status": "open",
+  "title": "mail 01M5MT23K7 (fabrik): /fabrik-spec-review feedback asking for code: two rows routed to infra (review_receipt.py --init for spec-review; keep RUN-SCRATCH across a handoff)"
+}

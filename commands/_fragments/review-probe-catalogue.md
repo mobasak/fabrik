@@ -152,9 +152,10 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
   test gap; counter or guard is gutted in same round to show it can fail; regression test fails when caller is reverted;
   each slice's seats write and run one mutant of their own per guard change adds in their slice, written afresh rather
   than re-run from lead's pre-pin list, on a copy made from the pin, under the explicit `timeout` its brief names
-  (`/fabrik-review`'s D8 mutation-seat lesson); one reader mutates guarded behaviour; tests slice's seats also write and
-  run mutants of their own against each behaviour its tests claim, beside lead's, and report each survivor that changes
-  observable behaviour, as above; graders are written, and named, before next round goes out.
+  (`/fabrik-review`'s D8 mutation-seat lesson), that `timeout` being the House rules' `capped_run.sh --timeout`;
+  one reader mutates guarded behaviour; tests slice's seats also write and run mutants of their own against each
+  behaviour its tests claim, beside lead's, and report each survivor that changes observable behaviour, as above;
+  graders are written, and named, before next round goes out.
 - Test hygiene: a test stub records what it RECEIVED; timing test is repeated 10× under its mutation; isolation is
   proven by reversed-order run and by removing fixture; state-mutating grader leaves nothing on teardown; non-ASCII
   literals are checked by bytes; whole suite directory of changed test runs; golden value is pinned after printing its
@@ -252,13 +253,22 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
   loader or a stub — found by grepping `tests/` for each changed file's stem, its name without `.py`, or an
   `__init__.py`'s package dotted name, and keeping the hits that import or load it) for every seat to run by
   `PIN_IMPORT`/`PYTEST_PINS` recipe (a test it leaves unrun stays unverified), so a new import that breaks a stubbed
-  loader reds in the pass. A script seat runs is run from its archive copy with every path argument under scratch (a
-  script may treat any argument as a write path), and pin carries changed files' one-hop callees that are repo files
-  (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo root). The
-  pin also carries each file a fix's text points at by path, and the brief says the pin holds only the files it lists,
-  so a seat reads any other file, the rest of a changed module's directory included, from the base tree with the pins
-  laid over it (`<pins_dir>.base` when the pin was taken `--base`, else the archive of its `base_sha`), never from the
-  live tree beyond what the seat prompt's recipes (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from the live disk and
+  loader reds in the pass. A test that needs a gitignored dependency tree (`node_modules/`) runs on no seat tree: an
+  archive or a clone holds none, a link to the live one or a variable pointing at it lets the run write inside it, and
+  a copy of it is a copy of the live checkout, which this section bars; so a seat reports that test unverifiable and
+  never runs it, and the lead runs it when the change touches it, the code it tests, or the config, manifest or
+  lockfile its run reads, in CLAUDE.md's throwaway worktree at the pin's `base_sha` with the pins laid over it, after
+  an install from the lockfile that governs that tree, its own or its workspace root's, run at that root (from the
+  manifest alone when none governs it); a tree outside the repo is used only by a run that writes nothing inside it,
+  its cache directory set under scratch, else the lead too reports the test unverifiable; the lead names UNPINNED
+  every tree its run read that no lockfile installed. A script seat runs is run from its archive copy with every path
+  argument under scratch (a script may treat any argument as a write path), and pin carries changed files' one-hop
+  callees that are repo files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink
+  or outside the repo root). The pin also carries each file a fix's text points at by path, and the brief says the pin
+  holds only the files it lists, so a seat reads any other file, the rest of a changed module's directory included,
+  from the base tree with the pins laid over it (`<pins_dir>.base` when the pin was taken `--base`, else the archive
+  of its `base_sha`), never from the live tree beyond what the seat prompt's recipes (`PIN_IMPORT`, `PYTEST_PINS`,
+  `GATE_PINS`) take from the live disk and
 name UNPINNED.
 - A pins-only copy is not a test tree: it holds the pins and nothing else — no package, no pytest config, no
   conftest, none of the files a conftest loads by path (the hub's `tests/conftest.py` loads `tests/memguard.py`; its
@@ -345,6 +355,9 @@ name UNPINNED.
   repo's `.worktreeinclude` list, `.env` excepted) and any sibling-repo symlink they follow. Each later pass's brief
   names its own pin dir and digest, cut after the last fix, never the round-1 pin, and seat scratch dirs from earlier
   rounds are kept until the close, so a seat re-runs its saved probes.
+- A test run, and a probe that executes pinned code, follows the fabrik-reviewer House rules' `capped_run.sh` clause
+  (D-935; the recipe's pytest launch is its `<command>`), since the Bash tool's `timeout` only backgrounds a command (a
+  seat's FIFO-blocked mutant ran 2 days 13 hours, mail 01M65ZP80Q); a brief to a seat of another type quotes it whole.
 
 ## Loop bookkeeping
 

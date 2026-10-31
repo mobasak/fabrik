@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:25:59.933613Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-2465af70",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M67B73FWH8ZNW8YFCDQQS7EP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "rotate infra-3 — W-5568be8d closed, MR 01M67B6M3J sent"
+}

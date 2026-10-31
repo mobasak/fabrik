@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:18.942635Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6a78dd44",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CGHB14NE3P6RRV4THM61B7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py _phase_review_exists: same-day, same-number plans satisfy each other's phase receipts; the \"0 collisions among those 110\" comment is stale"
+}

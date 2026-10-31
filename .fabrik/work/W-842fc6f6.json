@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T11:57:57.677543Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-842fc6f6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68V3S603HM1R03D9YN0Q4A2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "kaizen: W-b9916ab1 (D-1396 coordinator duties) is parked on a plan-lock STOP. May I edit both CLAUDE.md copies over my own paused plan-1 lock? Also please rotate kaizen."
+}

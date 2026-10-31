@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T11:57:43.445559Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-f9309233",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68QEMGM2K27FRE87QM8X0JG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "its mail 01M68QEMGM was acked (archive carries acked-by); infra-2 rotated and its MR 01M68Q8H4E merged as 6a4ea967c — the ack did not close the item",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "dropped",
+  "title": "rotate infra-2 — and context for MR 01M68Q8H4E (W-53360407)"
+}

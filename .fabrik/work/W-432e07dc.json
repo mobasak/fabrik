@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T16:57:35.760802Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-432e07dc",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "design both readers together: _panel_problem can skip a seen user uuid as it does a queued one, but the backward walk cannot see an earlier copy — a forward pre-scan of the tail, or one shared turn-boundary helper; replay on the 24 real panel cases (W-573ddaa1 review scratch probe_user_rewrite.py) before building",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "hooks"
+  ],
+  "title": "final_gate_stop.py panel readers: an operator user row Claude Code re-writes with its own uuid (3,854 real copies; a seat verdict between the first copy and the rewrite 963 times, with a panel text too 24 times) still resets _panel_problem's verdict stores and ends _turn_texts's backward walk, the sibling of W-573ddaa1's queued-row fix (D-1349). Same item: the walk breaks at _operator_text while _panel_problem resets at _is_operator_prompt (0 of 37,029 real rows differ), the walk gives a uuid-less queued row no cut-off while _panel_problem resets at it (0 of 3,154 real rows lack a uuid), and _final_message_text has no row-object guard (pre-existing)"
+}

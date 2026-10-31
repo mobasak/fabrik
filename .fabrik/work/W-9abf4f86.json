@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:32.869106Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9abf4f86",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5DXADV4396Q8ZP4A5BH6MD8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Synced checker false-clean: scripts/enforcement/check_data_contract_legend.py takes a REPO ROOT and reads <root>/docs/data-contract.md. Given a FILE path (python3 scripts/enforcement/check_data_contract_legend.py <copy>/data-contract.md) it exits 0 with no output, which reads as a clean pass. Run ag"
+}

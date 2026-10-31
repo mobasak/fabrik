@@ -62,6 +62,23 @@ if [ -f "$STAMP" ]; then
     [ "$age" -lt "$PERIOD" ] && exit 0
 fi
 
+# Hibernate pause (W-6e656dac T03a, seam P): `hibernate.py paused` exit 0 = skip this cycle, stamp
+# untouched (the next hourly slot after the lift catches up). Exit 1, >=2, a 10 s timeout or a
+# missing script proceeds (fail-open); an error logs one line.
+HIB_PY="${FABRIK_HIBERNATE_PY:-/opt/fabrik/scripts/sysadmin/hibernate.py}"
+if [ -f "$HIB_PY" ]; then
+    timeout 10 python3 "$HIB_PY" paused >/dev/null 2>&1
+    hib_rc=$?
+    if [ "$hib_rc" -eq 0 ]; then
+        echo "weekly_catchup: ${JOB} skipped — hibernate pause marked ($(date -Is))"
+        exit 0
+    elif [ "$hib_rc" -ne 1 ]; then
+        echo "weekly_catchup: hibernate.py paused rc=${hib_rc} — proceeding ($(date -Is))" >&2
+    fi
+else
+    echo "weekly_catchup: hibernate.py not found — proceeding ($(date -Is))" >&2
+fi
+
 echo "weekly_catchup: running ${JOB} ($(date -Is))"
 # rc semantics differ per job: audit_authelia_gates exits 1 when the AUDIT RAN and
 # found drift (a finding, not a run failure) — stamping on it keeps the weekly
@@ -109,6 +126,10 @@ case "$JOB" in
         # them — the operator does not read dashboards. Watermarked inside the relay,
         # so double-runs are no-ops; a relay failure never unstamps the collector.
         "$PY" "$ROOT/scripts/sysadmin/feedback_relay.py" || true
+        # RIDER (W-d6ebcc04, non-fatal): mail kaizen one digest of the LESSONS_LEARNT / AFCL
+        # entries written in any repo since the last run. Cursor-keyed inside the relay, so a
+        # re-run sends nothing twice; a relay failure never unstamps the collector.
+        "$PY" "$ROOT/scripts/sysadmin/lessons_relay.py" || true
         # RIDER (rules pass 2026-09-01, non-fatal): version-pin tripwire — mails infra
         # when a rules pack pins a python/node version the world has moved past
         # (the answer to "what happens in one year"). Watermarked per upstream

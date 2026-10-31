@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:01.878666Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e9fa7778",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q71ZM6JKTZQXQKH7BJK6XY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "tests/test_hooks_headless_guard.py::test_every_declared_spawner_actually_sets_the_flag passes when the FABRIK_HEADLESS dict is not the env the spawn receives"
+}

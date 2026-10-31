@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:52:14.743806Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b3507ff0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5XP437VCNBMZMP9VTMCC9BQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "DONE: scripts/command_run.py recopied from hub master (hub D-1268), on fabrik-lib main as merge 8afa26d6"
+}

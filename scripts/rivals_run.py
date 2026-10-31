@@ -50,6 +50,7 @@ import datetime as _dt
 import json
 import os
 import re
+import subprocess
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -533,7 +534,14 @@ def _make_llm(model: str):
                     # hooks stand down on FABRIK_HEADLESS; the mesh's self-watch arm order stands
                     # down only on CLAUDE_MESH_HEADLESS, and without it the order leaks into the
                     # answer text even with tools off.
-                    env={**os.environ, "FABRIK_HEADLESS": "1", "CLAUDE_MESH_HEADLESS": "1"},
+                    env={
+                        **os.environ,
+                        "FABRIK_HEADLESS": "1",
+                        "CLAUDE_MESH_HEADLESS": "1",
+                        # a frozen API call retries through a hibernate wake (spec L1)
+                        "CLAUDE_CODE_RETRY_WATCHDOG": "1",
+                    },
+                    preexec_fn=seat_preexec,
                 )
                 try:
                     out, err = await asyncio.wait_for(proc.communicate(), timeout=_LLM_TIMEOUT_S)
@@ -1365,6 +1373,38 @@ def _foreign_caller_repo() -> Path | None:
     return None
 
 
+def hibernate_paused() -> bool:
+    """True while a hibernate pause is marked (`hibernate.py paused` exit 0). Exit 1, >=2, a 10 s
+    timeout or a missing script is fail-open (False), one line on an error (W-6e656dac T03b).
+    SYNCED file: no hub import — it shells out to the hub path and fails open when that is absent
+    (a host without the hub checkout, such as a cloud worker or CI)."""
+    script = os.environ.get("FABRIK_HIBERNATE_PY", "/opt/fabrik/scripts/sysadmin/hibernate.py")
+    if not Path(script).is_file():
+        print(f"hibernate.py not found at {script} — proceeding", file=sys.stderr)
+        return False
+    try:
+        rc = subprocess.run(
+            [sys.executable, script, "paused"], capture_output=True, timeout=10, check=False
+        ).returncode
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        print(
+            f"hibernate.py paused failed ({exc.__class__.__name__}) — proceeding", file=sys.stderr
+        )
+        return False
+    if rc not in (0, 1):
+        print(f"hibernate.py paused rc={rc} — proceeding", file=sys.stderr)
+    return rc == 0
+
+
+def seat_preexec() -> None:
+    """Kill order (spec L5): a headless seat is the first the OOM killer takes. Fail-open."""
+    try:
+        with open("/proc/self/oom_score_adj", "w") as f:
+            f.write("500")
+    except OSError:
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     foreign = _foreign_caller_repo()
@@ -1378,6 +1418,9 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if hibernate_paused():  # once per run, never per call: a pause starts no new seat
+        print("hibernate pause marked — rivals_run starts nothing")
+        return 0
     try:
         # No `subagents` sys.path search happens here any more. That loop existed ONLY so the
         # deleted `from libs.subagents import load_env` could resolve across three layouts, and

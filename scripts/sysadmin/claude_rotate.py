@@ -31,6 +31,7 @@ from __future__ import annotations
 import contextlib
 import fcntl
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -44,6 +45,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
@@ -1407,6 +1409,9 @@ def _account_status(store: Path) -> dict:
     # successor and stops the live account from ever rotating.
     windows_ok = True
     for key in ("five_hour", "seven_day"):
+        if key == "five_hour" and isinstance(usage, dict) and _five_hour_retired(usage):
+            row[key] = dict(_RETIRED_WINDOW)  # the one shared rule (`_usage_windows`)
+            continue
         w = usage.get(key)
         # through the ONE validator (round zero of the routed-up review): `float()` of a giant
         # JSON int raised out of the probe parser itself — the row never reached the cache
@@ -1479,6 +1484,8 @@ def _cmd_status(as_json: bool) -> int:
 
     def fmt(w):
         # the legacy view keeps its SHAPE; both guards are shared with _fmt_quota_window
+        if _is_retired(w):
+            return "retired"  # D-1400: the payload has no 5h window, so no percentage to print
         u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
         if u is None:
             return "-"
@@ -3534,8 +3541,10 @@ def _cmd_tick() -> int:
     tick also runs it in-line before its posture, so this call then arms and lifts nothing more
     (it may repeat the "quota is unread" line when the advisory never read the quota).
 
-    The resume wake (W-75cafe7a) runs last in the ``finally``: :func:`_resume_leg` records this
-    tick's end and, after a sleep, wakes every armed self-watch."""
+    The resume wake (W-75cafe7a) runs next in the ``finally``: :func:`_resume_leg` records this
+    tick's end and, after a sleep, wakes every armed self-watch — or, under the `hibernate` tier,
+    only writes its `resume-wake` row. The hibernate lift leg (W-6e656dac) runs last, so that row
+    is its lift (a)'s evidence within the same tick."""
     global _QUOTA_HOT_THIS_TICK
     # UNKNOWN until the quota leg positively finds the active account cool on a real reading —
     # a blackout, a raise before the advisory, or a skipped advisory keeps the battery hold
@@ -3571,6 +3580,7 @@ def _cmd_tick() -> int:
                 watchdog.cancel()
         _battery_leg(time.time(), lift=True)
         _resume_leg(start, prev_end)
+        _hibernate_lift_leg(_now(), prev_end)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -4658,14 +4668,56 @@ def _pin_pending_identities(dirs: list[Path]) -> dict:
                 os.close(lock_fd)
 
 
+def _five_hour_retired(usage: dict) -> bool:
+    """Has this account's payload RETIRED the 5-hour window (D-1400, W-992979e1)? True only on the
+    live Ultra shape (sarp, 2026-10-31): the ``five_hour`` key PRESENT with null, and a ``limits``
+    list that carries a ``weekly_all`` entry (positive evidence the array is whole) and NO kind
+    outside the two weekly kinds (``weekly_all``, ``weekly_scoped``) — an allowlist, so a session
+    limit under any name, a renamed 5h limit or a kind this code has never seen stays fail-closed,
+    as does an absent key, an empty/missing/non-list ``limits`` or no ``weekly_all``.
+
+    ⚠️ Fail direction: OPEN on a payload that keeps both signals while a 5h limit is still
+    enforced — the window then reads 0% and the hit wall surfaces as the CLI's usage-limit error
+    (``run_claude`` rotates on it; an interactive session gets no 5h warning). The weekly and
+    Fable bands are untouched. Revert: delete this predicate AND each retired account's row from
+    ``fleet-usage-cache.json``, or the cached 0.0 is served while the parser fails closed again."""
+    if "five_hour" not in usage or usage["five_hour"] is not None:
+        return False
+    limits = usage.get("limits")
+    if not isinstance(limits, list):
+        return False
+    kinds = [lim.get("kind") if isinstance(lim, dict) else None for lim in limits]
+    # `isinstance(k, str)` first: a list or dict kind is unhashable and the frozenset test raised
+    # out of both parsers (closing pass, seat A)
+    return "weekly_all" in kinds and all(
+        isinstance(k, str) and k in _WEEKLY_LIMIT_KINDS for k in kinds
+    )
+
+
+_WEEKLY_LIMIT_KINDS: Final = frozenset({"weekly_all", "weekly_scoped"})
+
+# The reading a retired 5h window stands in with: 0.0 is "no constraint" to every band, picker,
+# flip and governor reader (None would wall the account at the picker and RED the fleet band);
+# `retired` is what the renderers, `_row_utils` and `_tick_row` key on.
+_RETIRED_WINDOW: Final = {"utilization": 0.0, "resets_at_epoch": None, "retired": True}
+
+
+def _is_retired(w: object) -> bool:
+    return isinstance(w, dict) and w.get("retired") is True
+
+
 def _usage_windows(usage: dict | None) -> dict | None:
     """Both quota windows from a usage payload, or None on ANY malformed part. FAIL-CLOSED like
     _account_status: a changed/partial shape must read as "no reading" (→ the cached row), never
-    as 0% — a false 0% would silence the advisory exactly when an account nears its wall."""
+    as 0% — a false 0% would silence the advisory exactly when an account nears its wall. The one
+    exception is a 5h window the payload has RETIRED (:func:`_five_hour_retired`)."""
     if not isinstance(usage, dict):
         return None
     out: dict = {}
     for key in ("five_hour", "seven_day"):
+        if key == "five_hour" and _five_hour_retired(usage):
+            out[key] = dict(_RETIRED_WINDOW)
+            continue
         w = usage.get(key)
         u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None  # `true` is not 1%
         if u is None:
@@ -5352,6 +5404,8 @@ def _fmt_reset_clock(epoch: object, absent: str = "?") -> str:
 def _fmt_quota_window(w: dict | None) -> str:
     """Fleet-view window formatter (the legacy _cmd_status keeps its own — that view must stay
     byte-identical while the fleet exists nowhere)."""
+    if _is_retired(w):
+        return "retired"  # D-1400: the payload has no 5h window, so no percentage to print
     # the utilization half through the validator too — a giant int on the SAME corrupt row
     # raised out of the f-string one token after the reset was guarded (round 2 seat A, F2)
     u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
@@ -5685,7 +5739,9 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
                 "slugs": list(row.get("slugs") or []),
                 "state": state,
                 "why": reason,
-                "session_pct": fv,
+                # a RETIRED 5h window publishes no session figure (its 0.0 is a stand-in, D-1400)
+                "session_pct": None if _is_retired(row.get("five_hour")) else fv,
+                **({"session_retired": True} if _is_retired(row.get("five_hour")) else {}),
                 "weekly_pct": wv,
                 "session_resets_at": fr,  # already a float or None (the validator above)
                 "weekly_resets_at": wr,
@@ -5983,6 +6039,7 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
         if isinstance(r, dict)
     }
     best: dict[str, tuple[float, str | None]] = {}
+    five_hour_retired = False  # whether best["five_hour"] came from a retired window
     for row in accounts:
         if not isinstance(row, dict):
             continue
@@ -6022,8 +6079,16 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
         if state == "session-exhausted":
             continue
         fh_u, _ = _window_reading(row.get("five_hour"))
-        if fh_u is not None and (("five_hour" not in best) or fh_u < best["five_hour"][0]):
+        # a REAL reading outranks a RETIRED one at the same value (D-1400), so the fleet 5h names a
+        # retired provider only when it is strictly the coolest, whatever the account order
+        fh_ret = _is_retired(row.get("five_hour"))
+        if fh_u is not None and (
+            ("five_hour" not in best)
+            or fh_u < best["five_hour"][0]
+            or (fh_u == best["five_hour"][0] and five_hour_retired and not fh_ret)
+        ):
             best["five_hour"] = (fh_u, slug)
+            five_hour_retired = fh_ret
     # the WALL each reading is measured against travels WITH it: the band is drawn from headroom,
     # and only the account that PROVIDED a window's reading knows its own cap (weekly); 5h and
     # Fable are uncapped and wall at 100
@@ -6041,6 +6106,8 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
     for k, (u, sl) in best.items():
         wall = by_slug.get(sl) if k == "seven_day" else None
         out[k] = {"utilization": u, "slug": sl, "wall": _band_lines(wall)[1] + _BAND_RED_RUNWAY}
+        if k == "five_hour" and five_hour_retired:
+            out[k]["retired"] = True
     return out
 
 
@@ -6299,6 +6366,8 @@ def _quota_posture(
         ),
         "models": {},
     }
+    if _is_retired((row or {}).get("five_hour")) and isinstance(windows["five_hour"], dict):
+        windows["five_hour"]["retired"] = True  # the renderers print `5h retired` (D-1400)
     mw = (row or {}).get("model_windows")
     if isinstance(mw, dict):
         for k, v in mw.items():
@@ -6306,7 +6375,10 @@ def _quota_posture(
             if isinstance(k, str) and mu is not None:
                 windows["models"][k] = _forecast(mu, mr, 100.0, None, now)
 
-    readings = [(k, u) for k, u in (("five_hour", fh_u), ("seven_day", wk_u)) if u is not None]
+    # a RETIRED 5h window's 0.0 is a stand-in (D-1400): it is never the `hottest` window a reader
+    # names or prices (dispatch_headroom `_posture_hot`, the hook's deny reason) — review pass 1
+    fh_hot = None if _is_retired((row or {}).get("five_hour")) else fh_u
+    readings = [(k, u) for k, u in (("five_hour", fh_hot), ("seven_day", wk_u)) if u is not None]
     hottest = max(readings, key=lambda kv: kv[1])[0] if readings else None
     hot = max((u for _, u in readings), default=None)
     readings_f = readings + ([("fable", fb_u)] if fb_u is not None else [])
@@ -6485,7 +6557,9 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
         for key, label in (("five_hour", "5h"), ("seven_day", "weekly"), ("fable", "Fable")):
             w = fw.get(key)
             u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
-            if u is not None:
+            if u is not None and _is_retired(w):
+                parts.append(f"{label} retired ({w.get('slug') or '?'})")
+            elif u is not None:
                 parts.append(f"{label} {pct(w)} ({w.get('slug') or '?'})")
             elif scarce and key != "fable" and key not in fw:
                 # ABSENCE is load-bearing since the required-window rule: say it, do not omit it
@@ -6495,9 +6569,12 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
             # (Delta 9 seat A, F5)
         fleet_s = " · fleet " + " ".join(parts) if parts else ""
     burn_s = f"{burn:.2f}%/m" if isinstance(burn, (int, float)) else "—"
+    # a RETIRED 5h window (D-1400) has no percentage, forecast or burn to print
+    fh_s = "5h retired" if _is_retired(fh) else f"5h {pct(fh)} {_fmt_forecast(fh)}"
+    burn_tail = "" if _is_retired(fh) else f" · burn 5h {burn_s}"
     return (
-        f"posture: {band_s} · 5h {pct(fh)} {_fmt_forecast(fh)} · weekly {pct(wins.get('seven_day'))} "
-        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))} · burn 5h {burn_s}{fleet_s}"
+        f"posture: {band_s} · {fh_s} · weekly {pct(wins.get('seven_day'))} "
+        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))}{burn_tail}{fleet_s}"
     ) + f" · written {age / 60:.0f}m ago"
 
 
@@ -6557,7 +6634,10 @@ def _print_picture(pic: dict) -> None:
     for i, email in enumerate(pic["queue"], 1):
         r = by.get(email) or {}
         s, w = r.get("session_pct"), r.get("weekly_pct")
-        pct = f"{s:.0f}%/{w:.0f}%" if s is not None and w is not None else "?"
+        if r.get("session_retired") is True and w is not None:
+            pct = f"5h retired/{w:.0f}%"
+        else:
+            pct = f"{s:.0f}%/{w:.0f}%" if s is not None and w is not None else "?"
         tail = f" returns {_fmt_when(r['returns_at'])}" if r.get("returns_at") else ""
         why = f": {r['why']}" if r.get("state") == "unavailable" and r.get("why") else ""
         parts.append(f"#{i} {email} ({r.get('state')}{why} {pct}{tail})")
@@ -7120,14 +7200,11 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
             " every screen will prompt for login until ONE /login re-pins a chain"
         )
         return
-    utils = {}
-    for key in ("five_hour", "seven_day"):
-        w = row.get(key)
-        u = w.get("utilization") if isinstance(w, dict) else None
-        # through the ONE validator, like _flip_candidate_verdict: `_tick_burn` below was made
-        # non-raising on a giant JSON int and this bare read raised one line later on the same
-        # row — the flip never happened, the posture was never written (round 2 seat A, F1)
-        utils[key] = _usable_ts(u)
+    # through the ONE validator, like _flip_candidate_verdict: `_tick_burn` below was made
+    # non-raising on a giant JSON int and a bare read here raised one line later on the same
+    # row — the flip never happened, the posture was never written (round 2 seat A, F1). The
+    # shared reader also reads a RETIRED 5h window as no reading (D-1400).
+    utils = _row_utils(row)
     present = [u for u in utils.values() if u is not None]
     if not present:
         print(f"tick: active {row['email']} — no quota reading, no flip decision possible")
@@ -7265,8 +7342,12 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
 
 
 def _row_utils(row: dict) -> dict[str, float | None]:
+    # a RETIRED window's 0.0 is a stand-in, never evidence: read as None, it can neither be the
+    # "reading" `_row_has_reading` counts nor heat (D-1400; design critique, Opus concern 4)
     return {
-        key: (_usable_ts(w.get("utilization")) if isinstance(w, dict) else None)
+        key: (
+            _usable_ts(w.get("utilization")) if isinstance(w, dict) and not _is_retired(w) else None
+        )
         for key, w in (("five_hour", row.get("five_hour")), ("seven_day", row.get("seven_day")))
     }
 
@@ -7342,7 +7423,7 @@ def _active_heat_view(row: dict, now: float) -> dict:
     return view
 
 
-def _clear_stamp(stamp: Path, *, battery_lift: bool = False) -> bool:
+def _clear_stamp(stamp: Path, *, battery_lift: bool = False, hibernate_lift: bool = False) -> bool:
     """Unlink the fleet-exhausted stamp; True when it is gone. A stamp that cannot be removed
     (permissions, a directory in its place) is reported and left — the hold then STANDS, so no
     wake may follow: the tick must never tell the fleet the hold lifted while the hook still reads
@@ -7351,28 +7432,57 @@ def _clear_stamp(stamp: Path, *, battery_lift: bool = False) -> bool:
     The battery hold (W-83a8ee68) shares this stamp, so the QUOTA leg's clears (relief, dwell)
     must not end it: unless ``battery_lift``, a battery-tier stamp is KEPT, and a quota stamp
     while the battery is low is REWRITTEN as battery-tier — both answer False, so no wake follows.
-    Only :func:`_battery_lift` passes ``battery_lift=True``."""
-    if not battery_lift:
-        if _stamp_is_battery(stamp):
-            print("tick: fleet-exhausted stamp KEPT — it is the battery hold's, not the quota's")
-            return False
-        if _battery_low():
-            try:
-                _touch_stamp(stamp, time.time(), _stamp_body("0", _STAMP_TIER_BATTERY))
-            except OSError as exc:
-                print(f"tick: battery hold could not take over the stamp ({exc}) — it stands")
-                return False
-            print("tick: quota relief on a low battery — the stamp is now the battery hold's")
-            return False
-    try:
-        stamp.unlink(missing_ok=True)
-        return True
-    except OSError as exc:
+    Only :func:`_battery_lift` passes ``battery_lift=True``.
+
+    The hibernate tier (W-6e656dac, spec L2) is kept by EVERY clear but the hibernate lift's own
+    (``hibernate_lift``, :func:`_hibernate_release`) — checked before the low-battery branch, and
+    re-read under `hibernate.py`'s marker flock right before the unlink whenever a marker exists,
+    because the minute cron writes that tier while holding the same flock: a tier written after
+    the first read is never removed. Never call this from inside an `update_marker` callback — the
+    flock here is taken on a second descriptor and would block the tick on itself."""
+    if not hibernate_lift and _stamp_raw_tier(stamp) == _STAMP_TIER_HIBERNATE:
         print(
-            f"tick: fleet-exhausted stamp could not be cleared ({exc}) — the hold stands, no wake"
+            "tick: fleet-exhausted stamp KEPT — it is the hibernate hold's; only its lift clears it"
         )
-        _ledger_append({"event": "hold-stuck", "ts": time.time(), "error": str(exc)[:200]})
         return False
+
+    def decide(_marker: object = None) -> bool:
+        if not hibernate_lift and _stamp_raw_tier(stamp) == _STAMP_TIER_HIBERNATE:
+            print("tick: fleet-exhausted stamp KEPT — the minute cron armed the hibernate hold")
+            return False
+        if not battery_lift and not hibernate_lift:
+            if _stamp_is_battery(stamp):
+                print(
+                    "tick: fleet-exhausted stamp KEPT — it is the battery hold's, not the quota's"
+                )
+                return False
+            if _battery_low():
+                try:
+                    _touch_stamp(stamp, time.time(), _stamp_body("0", _STAMP_TIER_BATTERY))
+                except OSError as exc:
+                    print(f"tick: battery hold could not take over the stamp ({exc}) — it stands")
+                    return False
+                print("tick: quota relief on a low battery — the stamp is now the battery hold's")
+                return False
+        try:
+            stamp.unlink(missing_ok=True)
+            return True
+        except OSError as exc:
+            print(
+                f"tick: fleet-exhausted stamp could not be cleared ({exc}) — the hold stands, no wake"
+            )
+            _ledger_append({"event": "hold-stuck", "ts": time.time(), "error": str(exc)[:200]})
+            return False
+
+    if not hibernate_lift and _mark_state()[0] != "absent":
+        try:
+            ran, out = _marker_locked(decide)
+        except OSError as exc:
+            print(f"tick: the pause marker's lock could not be taken ({exc}) — clearing unlocked")
+            ran, out = False, None
+        if ran:
+            return bool(out)
+    return decide()
 
 
 # ── the battery hold (W-83a8ee68, D-898) ─────────────────────────────────────────────────────
@@ -7504,6 +7614,11 @@ def _battery_lift(now: float) -> None:
     r = _battery_reading()
     if r is None or r[2] != "mains":
         return  # battery, unknown, or no reading: only mains power lifts it
+    if _mark_state()[0] == "unlifted":
+        # a /hibernate pause is marked: waking the fleet now would undo the drain (W-6e656dac) —
+        # the hold stays until the pause lifts, and then this lift (or the hibernate one) wakes
+        print("tick: mains power is back but a hibernate pause is marked — the battery hold stays")
+        return
     if _QUOTA_HOT_THIS_TICK == _QUOTA_UNKNOWN:
         # the quota leg never reached a real reading this tick (a blackout, a raise, a skipped
         # advisory): waking now could wake the fleet into a wall — keep the hold, retry next tick
@@ -7534,9 +7649,256 @@ def _battery_leg(now: float, *, lift: bool) -> None:
 
 def _cmd_battery_tick() -> int:
     """`--battery-tick`, the 1-minute cron: ARM only, silent unless it acts, so the hold lands
-    within a minute of the crossing; the 5-minute tick owns the lift. Always exits 0."""
-    _battery_leg(time.time(), lift=False)
+    within a minute of the crossing; the 5-minute tick owns the lift. Always exits 0.
+
+    Every run first writes its heartbeat (`battery-tick-last`, Interface H — `hibernate.py
+    status` blocks with `no minute cron` when it is over 180 s old), then arms the battery hold,
+    then the hibernate tier (:func:`_hibernate_arm`) — in that order, so a battery stamp written
+    this minute at T-3 becomes the hibernate tier in the same run."""
+    now = _now()
+    prev_beat = _read_battery_tick_heartbeat()  # BEFORE the write below overwrites it
+    _write_battery_tick_heartbeat(now)
+    _battery_leg(now, lift=False)
+    _hibernate_arm(now, prev_beat)
     return 0
+
+
+def _read_battery_tick_heartbeat() -> float | None:
+    """The minute cron's previous beat (`<state>/battery-tick-last`), or None — missing,
+    unreadable, not a regular file (a FIFO never blocks the read) or not a finite number."""
+    try:
+        path = _rotate_state_dir() / "battery-tick-last"
+        if not path.is_file():
+            return None
+        val = float(path.read_text(encoding="utf-8", errors="replace").strip())
+    except (ValueError, *_STATE_DIR_ERRORS):
+        return None
+    return val if math.isfinite(val) else None
+
+
+def _write_battery_tick_heartbeat(now: float) -> None:
+    """Atomically write *now* to `<state>/battery-tick-last`; never raises (a lost heartbeat is a
+    `status` BLOCKS row, never a broken cron)."""
+    tmp = None
+    try:
+        path = _rotate_state_dir() / "battery-tick-last"
+        tmp = path.with_name(f".{path.name}.{os.getpid()}")
+        if os.path.lexists(tmp):
+            os.unlink(tmp)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        with os.fdopen(fd, "w") as fh:
+            fh.write(f"{now}\n")
+        os.replace(tmp, path)
+    except _STATE_DIR_ERRORS as exc:
+        print(f"battery-tick: heartbeat not written ({exc})")
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
+
+
+# ── the hibernate hold (W-6e656dac; spec 2026-10-21-hibernate-full-guarantee § L2, L3) ─────────
+# `/hibernate --deadline <d>` writes `hibernate.json` (`paused_at`, `deadline_at` = T) through
+# `hibernate.py`'s `update_marker`. At T-3 the minute cron makes the fleet-exhausted stamp the
+# `hibernate` tier — line 2 `hibernate`, line 1 carried raw — which every tier reader folds into
+# `walled` (it is not a tier they know), so the hooks hold all-out; `quota_stop.py` and the Stop
+# hook additionally refuse their stale-tick fail-open for it while the mark is unlifted. Only a
+# hibernate lift clears the tier: the quota relief, the dwell and the battery lift keep it. The
+# 5-minute tick lifts the pause by (a) a `resume-wake` row whose gap began after the mark and
+# ended at or after T-3 (the box slept), (b) the API unreachable from T or later for two slots and
+# answering again on three consecutive ticks (an outage with no sleep), or (c) T + 30 min (the
+# pause cancelled; T is the mark when no deadline was set) — and clears a `hibernate` tier whose
+# mark the hub's `hibernate.py lift` already lifted. Every marker write goes through
+# `hibernate.py`'s `update_marker`, loaded by FILE PATH (`CLAUDE_HIBERNATE_PY`, default the hub's):
+# the aro-wake ship carries no hub copy, and there a missing path arms and lifts nothing.
+# ⚠️ A second `LOCK_EX` on `hibernate.json.lock` from a second descriptor in ONE process blocks:
+# every `_clear_stamp` here runs AFTER `update_marker` returns, never inside its callback.
+# COBRA (D-253): the cheapest way to look like "the pause lifts after the wake" is to lift on any
+# tick gap or any failed probe; the gap must START after the mark and END at or after T-3 (a nap
+# during the drain lifts nothing), the outage must START at or after T and be answered three times,
+# and the cancel waits a full 30 minutes past T — each lift path is named in the marker
+# (`lift_path`) and in a ledger row, so a wrong lift is visible, not silent.
+_STAMP_TIER_HIBERNATE: Final = "hibernate"
+_HIBERNATE_T3_S: Final = 180.0  # the hard hold arms 3 minutes before T (hibernate.py `T3_S`)
+_HIBERNATE_CANCEL_S: Final = 1800.0  # lift (c): T + 30 min with neither a sleep nor an outage
+_HIBERNATE_DOWN_SLOTS: Final = 2  # lift (b): two unanswered tick slots …
+_HIBERNATE_UP_STREAK: Final = 3  # … then three consecutive answers
+_HIBERNATE_LIFT_EVENT: Final = "hibernate-lift"
+_HIBERNATE_TICK_PATHS: Final = frozenset({"sleep", "outage", "cancelled"})  # lifts the tick writes
+_HIBERNATE_PY_DEFAULT: Final = "/opt/fabrik/scripts/sysadmin/hibernate.py"
+_HIBERNATE_MOD_CACHE: dict[str, object] = {}
+
+
+def _hibernate_py() -> Path:
+    """The hub's `hibernate.py` — `CLAUDE_HIBERNATE_PY` when set (the tests' seam), else the hub's."""
+    return Path(os.environ.get("CLAUDE_HIBERNATE_PY") or _HIBERNATE_PY_DEFAULT)
+
+
+def _hibernate_mod() -> object | None:
+    """`hibernate.py` loaded by file path (never an import: the aro-wake twin ships alone), cached
+    per path and mtime; None when the file is absent or will not load."""
+    path = _hibernate_py()
+    try:
+        if not path.is_file():
+            return None
+        key = f"{path}:{path.stat().st_mtime_ns}"
+        if key in _HIBERNATE_MOD_CACHE:
+            return _HIBERNATE_MOD_CACHE[key]
+        spec = importlib.util.spec_from_file_location("_claude_rotate_hibernate", path)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    except Exception as exc:  # noqa: BLE001 — a broken hub copy arms and lifts nothing
+        print(f"tick: hibernate.py could not be loaded ({type(exc).__name__}: {exc})")
+        return None
+    _HIBERNATE_MOD_CACHE.clear()
+    _HIBERNATE_MOD_CACHE[key] = mod
+    return mod
+
+
+def _hibernate_home() -> Path | None:
+    """The `home` to hand `hibernate.py`'s marker verbs so they resolve THIS tick's state dir:
+    any home under `ROTATE_STATE_DIR` (they read the env too); else `<home>/.claude/state` names
+    its home; else None (the pytest scratch dir, which `hibernate.py` would resolve elsewhere)."""
+    sd = _rotate_state_dir()
+    if os.environ.get("ROTATE_STATE_DIR"):
+        return sd
+    if sd.name == "state" and sd.parent.name == ".claude":
+        return sd.parent.parent
+    return None
+
+
+def _marker_locked(fn: Callable[[dict], object]) -> tuple[bool, object]:
+    """Run ``fn(marker)`` holding `update_marker`'s flock, writing nothing (the callback hands the
+    marker back unchanged). ``(False, None)`` when there is no hub module or no home to give it."""
+    mod, home = _hibernate_mod(), _hibernate_home()
+    if mod is None or home is None:
+        return False, None
+    out: list[object] = []
+
+    def apply(m: dict) -> dict:
+        out.append(fn(m))
+        return m
+
+    mod.update_marker(home, apply)  # type: ignore[attr-defined]
+    return bool(out), out[0] if out else None
+
+
+def _mark_state() -> tuple[str, dict | None]:
+    """``(state, marker)`` read inline from `<state>/hibernate.json`: `absent` (no file, or no
+    pause named), `unreadable` (a file that is no JSON object or carries a non-numeric time),
+    `unlifted` or `lifted`. Never raises."""
+    try:
+        path = _rotate_state_dir() / "hibernate.json"
+        if not path.is_file():  # before the read: a FIFO blocks forever
+            return ("unreadable", None) if os.path.lexists(path) else ("absent", None)
+        m = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, RecursionError, *_STATE_DIR_ERRORS):
+        return "unreadable", None
+    if not isinstance(m, dict):
+        return "unreadable", None
+    if m.get("paused_at") is None:
+        return "absent", m
+    at = _usable_ts(m.get("paused_at"))
+    if at is None or any(
+        m.get(k) is not None and _usable_ts(m.get(k)) is None for k in ("lifted_at", "deadline_at")
+    ):
+        return "unreadable", None
+    lifted = _usable_ts(m.get("lifted_at"))
+    return ("lifted" if lifted is not None and lifted >= at else "unlifted"), m
+
+
+def _mark_unlifted(m: object) -> bool:
+    if not isinstance(m, dict):
+        return False
+    at, lifted = _usable_ts(m.get("paused_at")), _usable_ts(m.get("lifted_at"))
+    return at is not None and (lifted is None or lifted < at)
+
+
+def _mark_deadline(m: dict) -> float:
+    """T — `deadline_at`, or the mark itself when no deadline was set."""
+    t = _usable_ts(m.get("deadline_at"))
+    return t if t is not None else float(m["paused_at"])
+
+
+def _stamp_raw_line1(stamp: Path) -> str:
+    """Line 1 of the stamp as written (the resume promise), `0` when there is none to carry."""
+    try:
+        if not stamp.is_file():
+            return "0"
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            line = fh.read().split("\n")[0]
+    except OSError:
+        return "0"
+    return line if line.strip() else "0"
+
+
+_HIBERNATE_BEAT_GAP_S: Final = 300.0  # five missed one-minute beats: the box slept
+
+
+def _hibernate_arm(now: float, prev_beat: float | None = None) -> None:
+    """The minute cron's arm (spec L2): at T-3, holding `update_marker`'s flock and re-reading
+    the marker under it, make the stamp the `hibernate` tier with line 1 carried raw — a `walled`
+    or `battery` stamp included — unless the mark is lifted, T has passed, or the minute cron's
+    OWN previous beat (*prev_beat*, read before this run's heartbeat overwrote it) is over 300 s
+    old (the box slept: the lift leg judges that, and a box that slept before T-3 is never held
+    after it wakes). A missing previous beat (the first run) arms. This supersedes the ticket's
+    "the wall gap since `tick-last-end`": judged by the */5 tick's record, a dead or wedged */5
+    tick skipped the arm on an awake box and T arrived with no hard hold (review r1, F2).
+    A mark with no `deadline_at` arms nothing — T is the mark itself, so [T-3, T) has already
+    passed when it is written; only the posture hold and lift (c) apply to it. No hub
+    `hibernate.py` arms nothing."""
+    try:
+        state, m = _mark_state()
+        if state != "unlifted" or m is None:
+            return
+        deadline = _mark_deadline(m)
+        if not deadline - _HIBERNATE_T3_S <= now < deadline:
+            return
+        if prev_beat is not None and now - prev_beat > _HIBERNATE_BEAT_GAP_S:
+            print(
+                f"battery-tick: {(now - prev_beat) / 60:.0f} min since the minute cron's last beat "
+                "— the box slept; the hibernate tier is not armed (the tick's lift judges the sleep)"
+            )
+            return
+        stamp = _fleet_exhaustion_stamp()
+        armed: dict[str, object] = {}
+
+        def arm(mm: dict) -> None:
+            if not _mark_unlifted(mm):
+                return  # lifted while this run waited for the lock
+            t = _mark_deadline(mm)
+            if not t - _HIBERNATE_T3_S <= now < t:
+                return
+            prev = _stamp_raw_tier(stamp)
+            if prev == _STAMP_TIER_HIBERNATE:
+                return
+            _touch_stamp(stamp, now, _stamp_body(_stamp_raw_line1(stamp), _STAMP_TIER_HIBERNATE))
+            armed["from"] = prev
+            armed["deadline"] = t
+
+        ran, _ = _marker_locked(arm)
+        if not ran:
+            return
+        if armed:
+            print(
+                "battery-tick: HIBERNATE HOLD armed — T-3 reached"
+                + (
+                    f" (the {armed['from']} stamp became the hibernate tier)"
+                    if armed["from"]
+                    else ""
+                )
+            )
+            _ledger_append(
+                {
+                    "event": "hibernate-hold",
+                    "ts": now,
+                    "from": armed["from"],
+                    "deadline_at": armed["deadline"],
+                }
+            )
+    except Exception as exc:  # noqa: BLE001 — cron-hosted, like `_battery_leg`
+        print(f"battery-tick: hibernate arm ERROR {type(exc).__name__}: {exc}")
 
 
 # ── the resume wake (W-75cafe7a) ───────────────────────────────────────────────────────────────
@@ -7628,15 +7990,251 @@ def _resume_leg(start: float, prev_end: float | None) -> None:
         # `lexists`, not `exists`: a dangling link at the stamp path is a stamp `_stamp_tier`
         # reads as walled (fail-closed), and `exists()` follows the link and says no
         if os.path.lexists(stamp) and _stamp_tier(stamp) == _STAMP_TIER_WALLED:
+            if _stamp_raw_tier(stamp) == _STAMP_TIER_HIBERNATE:
+                # the sleep's EVIDENCE is recorded under the hibernate tier — the hibernate lift
+                # (lift path (a), `_hibernate_slept`) reads this row and wakes the sessions
+                _ledger_append(
+                    {
+                        "event": _RESUME_EVENT,
+                        "ts": _now(),
+                        "reason": _RESUME_KIND,
+                        "site": _STAMP_TIER_HIBERNATE,
+                        "woken": 0,
+                        "gap_s": round(gap),
+                        "gap_from": prev_end,
+                    }
+                )
+                print(
+                    f"tick: resumed after {gap / 60:.0f} min under the HIBERNATE hold — recorded;"
+                    " the hibernate lift wakes the sessions"
+                )
+                return
             print(
                 f"tick: resumed after {gap / 60:.0f} min — a hold stands; its lift wakes the sessions"
             )
             return
         _wake_held_sessions(
-            _now(), _RESUME_KIND, True, event=_RESUME_EVENT, extra={"gap_s": round(gap)}
+            _now(),
+            _RESUME_KIND,
+            True,
+            event=_RESUME_EVENT,
+            extra={"gap_s": round(gap), "gap_from": prev_end},
         )
     except Exception as exc:  # noqa: BLE001 — cron-hosted, like `_battery_leg`
         print(f"tick: resume leg ERROR {type(exc).__name__}: {exc}")
+
+
+def _api_answers() -> bool:
+    """One API reachability probe for lift (b): ANY HTTP answer counts, as the self-watch's
+    `curl -s` gate counts it (`claude-selfwatch.sh` `net_gate`); a transport failure is none."""
+    url = os.environ.get("CLAUDE_HIBERNATE_PROBE_URL") or "https://api.anthropic.com"
+    try:
+        req = urllib.request.Request(url, method="HEAD")  # noqa: S310 — a fixed https URL or the test seam
+        with urllib.request.urlopen(req, timeout=5):  # noqa: S310  # nosec B310
+            return True
+    except urllib.error.HTTPError:
+        return True
+    except Exception:  # noqa: BLE001 — every transport failure is "no answer"
+        return False
+
+
+def _hibernate_slept(at: float, t3: float) -> bool:
+    """Lift (a): a `resume-wake` row that ended at or after T-3 — a sleep that ended before T-3 is
+    a nap during the drain, not the hibernate — and EITHER whose gap began at or after the mark,
+    OR that was written under the armed tier (`site: hibernate`). The second arm exists because a
+    short deadline (`--deadline 3m` puts T-3 at the mark) leaves the last */5 tick's end BEFORE
+    `paused_at`, so the gap of the real sleep starts before the mark; a `site: hibernate` row is
+    written only while the tier stands, and the tier is armed only at or after T-3 of an unlifted
+    mark, so that row is itself proof the box slept under this pause (review r1, F1). Reads the
+    ledger's last 2 MB (a pause lasts at most a day)."""
+    try:
+        path = _rotate_state_dir() / "rotate-ledger.jsonl"
+        if not path.is_file():
+            return False
+        with path.open("rb") as fh:
+            size = fh.seek(0, os.SEEK_END)
+            fh.seek(max(0, size - 2 * 1024 * 1024))
+            text = fh.read().decode("utf-8", errors="replace")
+    except _STATE_DIR_ERRORS:
+        return False
+    for line in text.splitlines():
+        if f'"{_RESUME_EVENT}"' not in line:
+            continue
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(row, dict) or row.get("event") != _RESUME_EVENT:
+            continue
+        end = _usable_ts(row.get("ts"))
+        start = _usable_ts(row.get("gap_from"))
+        if start is None and end is not None and _usable_ts(row.get("gap_s")) is not None:
+            start = end - float(row["gap_s"])
+        if end is None or end < t3:
+            continue
+        if row.get("site") == _STAMP_TIER_HIBERNATE or (start is not None and start >= at):
+            return True
+    return False
+
+
+def _hibernate_outage(now: float, at: float, deadline: float) -> bool:
+    """Lift (b): one probe per tick while the pause is marked, its run kept in
+    `<state>/hibernate-net.json`. True once an outage that STARTED at or after T lasted two tick
+    slots and the API has answered on three consecutive ticks since; an outage that started before
+    T (a blip during the drain) is forgotten once it is answered three times."""
+    path = _rotate_state_dir() / "hibernate-net.json"
+    try:
+        st = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except (ValueError, *_STATE_DIR_ERRORS):
+        st = {}
+    if not isinstance(st, dict) or _usable_ts(st.get("paused_at")) != at:
+        st = {"paused_at": at}
+    down = int(st.get("down_slots") or 0)
+    if not _api_answers():
+        if _usable_ts(st.get("down_from")) is None:
+            st["down_from"] = now
+        st["down_slots"], st["up"] = down + 1, 0
+    elif down >= _HIBERNATE_DOWN_SLOTS:
+        st["up"] = int(st.get("up") or 0) + 1
+    else:
+        st = {"paused_at": at}  # a single missed answer is no outage
+    since = _usable_ts(st.get("down_from"))
+    lift = (
+        int(st.get("down_slots") or 0) >= _HIBERNATE_DOWN_SLOTS
+        and int(st.get("up") or 0) >= _HIBERNATE_UP_STREAK
+        and since is not None
+        and since >= deadline
+    )
+    if int(st.get("up") or 0) >= _HIBERNATE_UP_STREAK:
+        st = {"paused_at": at}  # the outage is over, lifted or not
+    try:
+        tmp = path.with_name(f".{path.name}.{os.getpid()}")
+        tmp.write_text(json.dumps(st), encoding="utf-8")
+        os.replace(tmp, path)
+    except _STATE_DIR_ERRORS as exc:
+        print(f"tick: the hibernate outage record could not be written ({exc})")
+    return lift
+
+
+def _hibernate_lift_path(now: float, m: dict) -> str | None:
+    """`sleep` (a), `outage` (b), `cancelled` (c), or None — the lift paths of spec L3."""
+    at = float(m["paused_at"])
+    deadline = _mark_deadline(m)
+    if _hibernate_slept(at, deadline - _HIBERNATE_T3_S):
+        return "sleep"
+    if _hibernate_outage(now, at, deadline):
+        return "outage"
+    if now >= deadline + _HIBERNATE_CANCEL_S:
+        return "cancelled"
+    return None
+
+
+def _hibernate_write_lift(now: float, m: dict, path: str) -> bool | None:
+    """Write `lifted_at`/`lift_path` through `update_marker` (re-checking the mark under its
+    flock): True written, False the mark changed under the lock (lifted by the hub, or a new
+    mark), None no hub `hibernate.py` (the aro-wake ship: nothing is written)."""
+    mod, home = _hibernate_mod(), _hibernate_home()
+    if mod is None or home is None:
+        return None
+    done: dict[str, bool] = {}
+
+    def apply(old: dict) -> dict:
+        if not _mark_unlifted(old) or _usable_ts(old.get("paused_at")) != _usable_ts(
+            m.get("paused_at")
+        ):
+            return old
+        done["ok"] = True
+        return {**old, "lifted_at": now, "lift_path": path}
+
+    mod.update_marker(home, apply)  # type: ignore[attr-defined]
+    return bool(done)
+
+
+def _hibernate_release(now: float, stamp: Path, path: str, *, fan_out: bool) -> None:
+    """After a lift (the tick's, or the hub's seen by the tick): end the `hibernate` tier and
+    wake every armed self-watch with `.holdlifted hibernate` — or, while the quota is hot or the
+    battery low, hand the stamp to that tier (line 1 kept) and wake nobody. With no tier standing
+    the tick's own lifts still fan out (a lid closed before T-3 slept with no tier), unless
+    another full hold stands — its own lift wakes them. Runs AFTER `update_marker` returns."""
+    raw = _stamp_raw_tier(stamp)
+    if raw == _STAMP_TIER_HIBERNATE:
+        hot = _QUOTA_HOT_THIS_TICK
+        if hot == _QUOTA_UNKNOWN:
+            print(
+                "tick: the hibernate pause is lifted but the quota is unread this tick — the "
+                "hibernate hold stays, retried next tick"
+            )
+            return
+        to = hot if hot is not None else (_STAMP_TIER_BATTERY if _battery_low() else None)
+        if to is not None:
+            _touch_stamp(stamp, now, _stamp_body(_stamp_raw_line1(stamp), to))
+            print(
+                f"tick: the hibernate pause is lifted ({path}) but the {to} hold stands — the "
+                "stamp is now its, no wake"
+            )
+            _ledger_append({"event": "hibernate-handed", "ts": now, "lift_path": path, "to": to})
+            return
+        if not _clear_stamp(stamp, hibernate_lift=True):
+            return  # could not be removed: the hold stands, no wake (`hold-stuck` row written)
+        print(f"tick: HIBERNATE HOLD lifted ({path})")
+    elif os.path.lexists(stamp) and _stamp_tier(stamp) == _STAMP_TIER_WALLED:
+        print(f"tick: the hibernate pause is lifted ({path}); another hold stands — its lift wakes")
+        return
+    if not fan_out:
+        _ledger_append({"event": "hibernate-cleared", "ts": now, "lift_path": path})
+        return
+    _wake_held_sessions(now, _STAMP_TIER_HIBERNATE, True, extra={"lift_path": path})
+
+
+def _hibernate_lift_leg(now: float, prev_end: float | None) -> None:
+    """The tick's hibernate leg, run in `_cmd_tick`'s `finally` AFTER `_resume_leg` (whose
+    `resume-wake` row is lift (a)'s evidence): lift an unlifted pause by (a), (b) or (c), and end
+    a `hibernate` tier whose mark is already lifted (the hub's `lift`) or gone. A lift the tick did
+    not write but sees for the first time this tick (lifted since the previous tick's end) gets its
+    own `hibernate-lift` row, so every lift path leaves one. Never raises."""
+    try:
+        stamp = _fleet_exhaustion_stamp()
+        state, m = _mark_state()
+        if state == "unlifted" and m is not None:
+            path = _hibernate_lift_path(now, m)
+            if path is None:
+                return
+            wrote = _hibernate_write_lift(now, m, path)
+            if wrote is None:
+                return
+            if wrote:
+                _ledger_append(
+                    {
+                        "event": _HIBERNATE_LIFT_EVENT,
+                        "ts": now,
+                        "lift_path": path,
+                        "paused_at": m.get("paused_at"),
+                    }
+                )
+                _hibernate_release(now, stamp, path, fan_out=True)
+                return
+            state, m = _mark_state()  # the hub lifted it while this tick waited for the lock
+        if (
+            state == "lifted"
+            and m is not None
+            and prev_end is not None
+            and float(m["lifted_at"]) > prev_end
+            and m.get("lift_path") not in _HIBERNATE_TICK_PATHS  # those wrote their row
+        ):
+            _ledger_append(
+                {
+                    "event": _HIBERNATE_LIFT_EVENT,
+                    "ts": now,
+                    "lift_path": str(m.get("lift_path") or "unknown"),
+                    "lifted_at": m["lifted_at"],
+                    "seen_by": "tick",
+                }
+            )
+        if _stamp_raw_tier(stamp) == _STAMP_TIER_HIBERNATE and state in ("lifted", "absent"):
+            path = str((m or {}).get("lift_path") or ("hub" if state == "lifted" else "no-mark"))
+            _hibernate_release(now, stamp, path, fan_out=path != "migration")
+    except Exception as exc:  # noqa: BLE001 — cron-hosted, like `_battery_leg`
+        print(f"tick: hibernate lift leg ERROR {type(exc).__name__}: {exc}")
 
 
 def _selfwatch_lock_dir() -> Path:
@@ -7750,19 +8348,22 @@ def _wake_held_sessions(
         if reading_ok:
             for sid in armed:
                 target = _selfwatch_lock_dir() / f"{_selfwatch_safe(sid)}.holdlifted"
+                # the battery lift, the resume wake and the hibernate lift name themselves so the
+                # self-watch's RESUME line can say which event woke it; a quota lift keeps its
+                # byte-exact one-field shape (W-83a8ee68, W-75cafe7a, W-6e656dac)
+                named = reason in (_STAMP_TIER_BATTERY, _RESUME_KIND, _STAMP_TIER_HIBERNATE)
+                body = f"{int(now)} {reason}\n" if named else f"{int(now)}\n"
                 try:
                     fd = os.open(str(target), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
                 except FileExistsError:
-                    counts["pending"] += 1
+                    if reason == _STAMP_TIER_HIBERNATE and _replace_pending_resume(target, body):
+                        counts["woken"] += 1  # a pending `resume` now reads `hibernate` (spec L3)
+                    else:
+                        counts["pending"] += 1
                     continue
                 except OSError:
                     counts["errors"] += 1
                     continue
-                # the battery lift and the resume wake name themselves so the self-watch's RESUME
-                # line can say which event woke it; a quota lift keeps its byte-exact one-field
-                # shape (W-83a8ee68, W-75cafe7a)
-                named = reason in (_STAMP_TIER_BATTERY, _RESUME_KIND)
-                body = f"{int(now)} {reason}\n" if named else f"{int(now)}\n"
                 try:
                     os.write(fd, body.encode())
                 finally:
@@ -7781,6 +8382,24 @@ def _wake_held_sessions(
         f"self-watch(es); dead {counts['dead']}, pending {counts['pending']}, errors {counts['errors']}"
     )
     return counts
+
+
+def _replace_pending_resume(target: Path, body: str) -> bool:
+    """The hibernate lift's fan-out replaces a pending `.holdlifted` whose field 2 is `resume`
+    (the box slept and the resume wake ran first), so the session reads the hibernate wording;
+    any other pending lift — a quota, battery or hibernate one — stays as it is. True replaced."""
+    try:
+        if not target.is_file():
+            return False
+        fields = target.read_text(encoding="utf-8", errors="replace").split()
+        if fields[1:2] != [_RESUME_KIND]:
+            return False
+        tmp = target.with_name(f".{target.name}.{os.getpid()}")
+        tmp.write_text(body, encoding="utf-8")
+        os.replace(tmp, target)
+    except OSError:
+        return False
+    return True
 
 
 def _promised_resume(stamp: Path) -> float | None:
@@ -8150,9 +8769,14 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
             if not expired:
                 open_rows[acct] = row
         elif ev in _EPISODE_END_EVENTS and open_rows:
-            if ev == _WAKE_EVENT and row.get("site") in ("dwell", _STAMP_TIER_BATTERY):
+            if ev == _WAKE_EVENT and row.get("site") in (
+                "dwell",
+                _STAMP_TIER_BATTERY,
+                _STAMP_TIER_HIBERNATE,
+            ):
                 # dwell: a hold cleared on EXPECTATION — the account is still walled (F1);
-                # battery: mains power came back, which says nothing about the quota (W-83a8ee68)
+                # battery: mains power came back, which says nothing about the quota (W-83a8ee68);
+                # hibernate: the pause ended, which says nothing about the quota either (W-6e656dac)
                 continue
             open_rows.clear()
     return open_rows, True
@@ -8453,6 +9077,16 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         # above writes an end: `_open_wall_episode` skips `site: dwell` — counting it re-armed
         # the ledger latch every tick-pair, 7/h with a WRITABLE stamp (Delta 9 seat B, F1).
         return
+    if _stamp_raw_tier(stamp) == _STAMP_TIER_HIBERNATE:
+        # the hibernate tier (W-6e656dac) holds every session already, and only its lift may end
+        # or rewrite it: return BEFORE the latch, the tier raise and the stamp write below — read
+        # as `battery_held` it would skip the latch and fall through to a `walled` rewrite (pass-2
+        # probe: `0 hibernate` became `0 walled`). The hibernate lift hands it to this tier.
+        print(
+            "tick: the active account is walled under the HIBERNATE hold — the stamp stays the "
+            "hibernate tier; its lift hands the stamp to the quota"
+        )
+        return
     # Latch: fire once per wall episode. But a latch is not forever — a WEEK of unbroken
     # exhaustion is a fact worth repeating (restores the per-account "week without a word" re-arm
     # the old code carried; a presence-only latch otherwise silences the operator for good if the
@@ -8706,13 +9340,18 @@ def _tick_row(accounts, threshold, now) -> None:
     raise here is printed and the advisory and the posture still run (W-21b4c0e5)."""
     _active_walled, _active_row = _active_account_walled(accounts, threshold, now)
     if _active_row is not None and isinstance(_active_row.get("five_hour"), dict):
-        _sess = _usable_ts(_active_row["five_hour"].get("utilization"))
-        if _sess is not None:
+        # a RETIRED 5h window writes `session: retired` and NO `pct`: its 0.0 is a stand-in, and
+        # `pct` is the session sample the flip line's evidence is read from (D-1400)
+        _retired = _is_retired(_active_row["five_hour"])
+        _sess = None if _retired else _usable_ts(_active_row["five_hour"].get("utilization"))
+        _wk_window = _active_row.get("seven_day")
+        _wk = _usable_ts(_wk_window.get("utilization")) if isinstance(_wk_window, dict) else None
+        if _sess is not None or (_retired and _wk is not None):
             _row = {
                 "event": "tick",
                 "ts": now,
                 "verdict": "walled" if _active_walled else "ok",
-                "pct": _sess,
+                **({"session": "retired"} if _retired else {"pct": _sess}),
                 "account": _active_row.get("email"),
                 "source": _active_row.get("source"),
             }
@@ -8720,10 +9359,6 @@ def _tick_row(accounts, threshold, now) -> None:
             # `not isinstance(_wk, bool)` matches `dispatch_headroom.quota()`'s guard on this same
             # field name, which earned that clause in its own review; unreachable today (both
             # producers coerce with float()), adopted so the convention travels with the name.
-            _wk_window = _active_row.get("seven_day")
-            _wk = (
-                _usable_ts(_wk_window.get("utilization")) if isinstance(_wk_window, dict) else None
-            )
             if _wk is not None:
                 _row["weekly_pct"] = _wk
             # the Fable weekly-scoped window rides the row too (D-269) — same guard, same write
@@ -9315,6 +9950,8 @@ def _cmd_probe_current(as_json: bool) -> int:
         return 0
 
     def _p(w: object) -> str:
+        if _is_retired(w):
+            return "retired"  # D-1400
         u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
         return f"{u:.0f}%" if u is not None else "-"
 

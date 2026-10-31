@@ -3,7 +3,7 @@
   "created": "2026-10-23T17:10:42.467081Z",
   "creator": "infra-2",
   "effort": "low",
-  "evidence": "",
+  "evidence": "860987f4e2323c77d0eb0a8132a63912e4c24d3f",
   "id": "W-f3039837",
   "impact": "low",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 3,
   "score_reason": "LOW: a rare edge in the mail digest count (dot-named files); effort low, infra-2's hook",
-  "status": "open",
+  "status": "done",
   "tags": [
     "waits-rotation"
   ],

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T18:56:58.794981Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-f5208c3e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M671518MF9CJ3WS5600VE748",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra status (D-1377 idle report; SendMessage 52732402 was held by your session, so sent by mail): I am idle. My only item is the P0 W-d87cebbb (box-wide SIGTERM waves), waiting for a natural recurrence or your repro GO. The SIGTERM-wave watcher (pid 3724883) is armed and both kernel trace instances"
+}

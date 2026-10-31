@@ -194,7 +194,10 @@ def test_an_unclosed_block_never_deletes_the_lines_after_it(tmp_path):
     assert _attr(repo) == "workitem"
     # review pass 3: a second BEGIN while the first is still open discarded what the first held
     begin = next(ln for ln in info.read_text().splitlines() if ln.startswith("# BEGIN"))
-    info.write_text(f"{begin}\nuser-inside -text\n{begin}\nstale\n# END work-item merge driver\n", encoding="utf-8")
+    info.write_text(
+        f"{begin}\nuser-inside -text\n{begin}\nstale\n# END work-item merge driver\n",
+        encoding="utf-8",
+    )
     assert _install(repo).returncode == 0
     assert "user-inside -text" in info.read_text().splitlines()
 
@@ -252,3 +255,67 @@ def test_a_key_conflict_falls_back_to_conflict_markers(tmp_path):
         assert "<<<<<<< ours" in (repo / ITEM).read_text()
         assert _git(repo, "ls-files", "-u", "--", ITEM).stdout.count("\n") == 3
         _git(repo, "merge", "--abort")
+
+
+LEDGERS = (
+    "CHANGELOG.md",
+    "docs/DECISIONS.md",
+    "INDEX.md",
+    "docs/STRATEGIC_BACKLOG.md",
+    "docs/LESSONS_LEARNT.md",
+)
+
+
+def _ledger_attr(repo: Path, path: str) -> str:
+    return _git(repo, "check-attr", "merge", "--", path).stdout.strip().rsplit(": ", 1)[-1]
+
+
+def test_the_hub_maps_the_root_ledgers_to_the_ledger_driver(tmp_path):
+    """W-53360407: the TRACKED file alone maps the five root ledgers to `ledger` — and only at the root
+    (a nested file of the same name keeps git's plain text merge)."""
+    repo = _bare_repo(tmp_path)
+    assert [_ledger_attr(repo, p) for p in LEDGERS] == ["ledger"] * len(LEDGERS)
+    assert _ledger_attr(repo, "sub/CHANGELOG.md") == "unspecified"
+
+
+def test_the_installer_registers_and_mirrors_the_ledger_driver(tmp_path):
+    repo = _bare_repo(tmp_path)
+    assert _install(repo).returncode == 0
+    assert _git(repo, "config", "--get-all", "merge.ledger.name").stdout.strip() == (
+        "merge_request.py merge-ledger (ledger insertions)"
+    )
+    driver = _git(repo, "config", "--get-all", "merge.ledger.driver").stdout.strip()
+    assert driver == (
+        "python3 scripts/merge_request.py merge-ledger %O %A %B %P || "
+        "git merge-file --marker-size %L -L ours -L base -L theirs %A %O %B"
+    )
+    info = (repo / ".git" / "info" / "attributes").read_text()
+    block = info.split("# BEGIN work-item merge driver", 1)[1].split(
+        "# END work-item merge driver", 1
+    )[0]
+    assert "merge=workitem" in block
+    assert [ln for ln in block.splitlines() if "merge=ledger" in ln] == [
+        f"/{p} merge=ledger" for p in LEDGERS
+    ]
+    # with the tracked file gone, the mirror alone still maps the root ledgers and not a nested one
+    (repo / ".gitattributes").unlink()
+    assert _ledger_attr(repo, "CHANGELOG.md") == "ledger"
+    assert _ledger_attr(repo, "sub/CHANGELOG.md") == "unspecified"
+
+
+def test_the_ledger_mappings_are_exactly_merge_requests_ledgers():
+    """The `.gitattributes` ledger set and the verb's `LEDGERS` (scripts/merge_request.py) cannot drift
+    apart: a ledger added on one side only would merge by hand again, or a non-ledger by the driver."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "mr_ledgers", HUB / "scripts" / "merge_request.py"
+    )
+    mr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mr)
+    mapped = {
+        ln.split()[0].lstrip("/")
+        for ln in (HUB / ".gitattributes").read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#") and "merge=ledger" in ln.split()
+    }
+    assert mapped == set(mr.LEDGERS) == set(LEDGERS)

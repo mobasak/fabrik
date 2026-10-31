@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T19:34:44.706010Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "6a4ea967c0d4b44df4b45d2cd5fa969b3e6f9d0f",
+  "id": "W-53360407",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "AMENDED by the panel (D-1381): spec covers NEW entries only — fragments under changelog.d/ and decisions.d/ assembled into the canonical CHANGELOG.md / docs/DECISIONS.md at merge; NO migration of the 31,458 lines (42 scripts + 72 tests read the assembled files); FIRST extend SKIP (merge_test_select.py:63), PRETEST_SKIP (merge_request.py:1493), LEDGERS (:536) and _dup_ids (:1216, must read fragments too) or ledger-only merges get SLOWER and D-ids collide; the 7 .fabrik/work same-item conflicts (_merge_work_item :1126) are a separate fix; merge_request.py is fleet-synced (D-1189)",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 0,
+  "score_reason": "conflict class is 43% of refusals; structural, needs a spec; infra-2 is idle",
+  "status": "done",
+  "title": "Stop appending to shared files (operator 2026-10-30: 'fed up with merge issues'): one entry file per CHANGELOG entry and per DECISIONS row (e.g. changelog.d/<id>.md, decisions.d/<D-id>.md), rendered into CHANGELOG.md and docs/DECISIONS.md at merge by merge_request.py, so two branches never touch the same line. Measured: 22 of 51 refusals in 14 d were conflicts; CHANGELOG.md + DECISIONS.md took 1475 commits in 14 d; CHANGELOG.md is 31458 lines. New mechanism on a sync path: /fabrik-spec (Size: small) first, then the plan"
+}

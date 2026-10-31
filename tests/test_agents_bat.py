@@ -104,9 +104,9 @@ def test_print_mode_writes_nothing(tmp_path: Path) -> None:
     before = sorted(p for p in tmp_path.rglob("*"))
     out = _run("--opt", str(opt))
     assert out.returncode == 0, out.stderr
-    assert "Fabrik-lib Agents.bat" in out.stdout and "agents_up.sh /opt/fabrik-lib" in out.stdout, (
-        out.stdout
-    )
+    assert (
+        "Fabrik-lib Agents.bat" in out.stdout and "agents_up.sh --tab /opt/fabrik-lib" in out.stdout
+    ), out.stdout
     assert sorted(p for p in tmp_path.rglob("*")) == before
     # a --desktop that does not exist is refused, never created
     gone = tmp_path / "no-such-desk"
@@ -158,6 +158,7 @@ def test_the_bat_text(tmp_path: Path) -> None:
         "bash",
         "-l",
         "/opt/fabrik/scripts/sysadmin/agents_up.sh",
+        "--tab",
         "/opt/fabrik-lib",
     ], launch[0]
     assert ' -M -w new new-tab -p "Fabrik-lib Agents grid"' in launch[0], launch[0]
@@ -181,8 +182,30 @@ def test_the_fragment_is_valid_json(tmp_path: Path) -> None:
     assert profile["font"] == {"size": 9}
     assert profile.get("hidden", False) is False
     assert profile["commandline"] == (
-        "wsl.exe --distribution Ubuntu-24.04 --exec bash -l /opt/fabrik/scripts/sysadmin/agents_up.sh /opt/fabrik-lib"
+        "wsl.exe --distribution Ubuntu-24.04 --exec bash -l /opt/fabrik/scripts/sysadmin/agents_up.sh --tab /opt/fabrik-lib"
     )
+    # W-df2e24ed: a tab whose command fails stays open, so its reason (a wsl.exe vsock error included) is readable
+    assert profile["closeOnExit"] == "never"
+
+
+def test_every_tab_command_passes_tab_and_the_profile_never_closes(tmp_path: Path) -> None:
+    """W-df2e24ed: every tab the tabbed .bat opens (each repo's first tab and every `--window n` tab) runs
+    `agents_up.sh --tab`, never the bare launcher whose no-terminal branch exits 0 and lets the tab vanish, and every
+    fragment profile keeps a failed tab open."""
+    opt = _opt(tmp_path, "aaa", "bbb")
+    desk = tmp_path / "desk"
+    desk.mkdir()
+    tm = _fake_tmux(tmp_path, aaa="agents\nagents-2\n", bbb="agents\n")
+    out = _run("--opt", str(opt), "--desktop", str(desk), "--tabbed", **tm)
+    assert out.returncode == 0, out.stderr
+    text = _bat(desk, TABBED)
+    tabs = _tabbed_tabs(text)
+    assert len(tabs) == 3, tabs
+    for tab in tabs:
+        words = tab.split(" wsl.exe ", 1)[1].split(" ")
+        assert words[words.index(AGENTS_UP) + 1] == "--tab", tab
+    frags = re.findall(r'"closeOnExit": "([^"]*)"', text)
+    assert frags == ["never", "never"], frags
 
 
 def test_existing_files(tmp_path: Path) -> None:
@@ -415,7 +438,7 @@ def test_tabbed_one_tab_per_window(tmp_path: Path) -> None:
     lines = text.split("\r\n")
     assert lines[0] == "@echo off" and lines[1] == MARK_LINE
     tabs = _tabbed_tabs(text)
-    tail = "wsl.exe --distribution Ubuntu-24.04 --exec bash -l " + AGENTS_UP
+    tail = "wsl.exe --distribution Ubuntu-24.04 --exec bash -l " + AGENTS_UP + " --tab"
     assert len(tabs) == 3, tabs
     assert tabs[0].endswith(f"{tail} /opt/aaa") and '--title "Aaa Agents"' in tabs[0], tabs[0]
     assert tabs[1].startswith("new-tab ") and tabs[1].endswith(f"{tail} --window 2 /opt/aaa"), tabs[
@@ -842,3 +865,148 @@ def test_write_uses_a_unique_temp_name(tmp_path: Path) -> None:
     assert mod._write(desk / "Aaa Agents.bat", mod.bat_text("aaa", "U1"), replace=False) == 0
     assert stale.read_bytes() == b"someone else's"
     assert sorted(p.name for p in desk.iterdir()) == ["Aaa Agents.bat", "Aaa Agents.bat.tmp"]
+
+
+# --- --list (W-6e656dac T04, Interface G): the boot sweep's repo list --------------------------------------------
+def test_list_prints_every_registered_repo_without_the_probe(tmp_path: Path) -> None:
+    """`--list` prints the absolute path of every repo with a registry or a .claude/worktrees folder, one per line,
+    sorted — WITHOUT asking agents_up.sh (a bus that does not answer yet at boot must never empty it), with no distro
+    to resolve, and writing nothing. The repos are created out of name order (T04 F8), so a list that is not sorted
+    cannot pass by the filesystem's creation order."""
+    opt = _opt(tmp_path, "zulu", "reg", bare=("plain", "mike", "bound"))
+    (opt / "mike" / ".claude" / "worktrees").mkdir(parents=True)
+    (opt / "bound" / ".claude" / "worktrees").mkdir(parents=True)
+    probe = tmp_path / "probe-ran"
+    up = tmp_path / "refusing_up.sh"
+    up.write_text(f'#!/bin/sh\ntouch "{probe}"\nexit 2\n', encoding="utf-8")
+    before = sorted(p for p in tmp_path.rglob("*"))
+    rel = os.path.relpath(opt, tmp_path)
+    out = _run("--list", "--opt", rel, distro=None, up=str(up), cwd=tmp_path)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.splitlines() == [
+        str(opt / "bound"),
+        str(opt / "mike"),
+        str(opt / "reg"),
+        str(opt / "zulu"),
+    ], out.stdout
+    assert all(os.path.isabs(ln) for ln in out.stdout.splitlines())
+    assert not probe.exists(), "--list ran the agents_up.sh --print probe"
+    assert sorted(p for p in tmp_path.rglob("*")) == before
+
+
+def test_list_takes_no_write_mode(tmp_path: Path) -> None:
+    """`--list` is its own mode: with --desktop, --tabbed or --replace it is refused (exit 2) by its own guard, never
+    half of both. The guard's text is asserted (T04 F1): argparse's "unrecognized arguments: --list" would also put
+    `--list` in stderr with exit 2."""
+    opt = _opt(tmp_path, "reg")
+    desk = tmp_path / "desk"
+    desk.mkdir()
+    for extra in (("--desktop", str(desk)), ("--tabbed",), ("--replace", "x")):
+        out = _run("--list", "--opt", str(opt), *extra)
+        assert out.returncode == 2, (extra, out.stderr)
+        assert "is its own mode" in out.stderr and "unrecognized" not in out.stderr, (extra, out.stderr)
+        assert "Traceback" not in out.stderr and out.stdout == "", (extra, out.stdout)
+        assert list(desk.iterdir()) == []
+
+
+def test_list_skips_an_unreadable_folder_and_lists_the_rest(tmp_path: Path) -> None:
+    """T04 F6: one child of --opt that cannot be read is skipped with a stderr line naming it; every other registered
+    repo is still listed and the exit is 0 (the boot sweep reads an empty list as `builders-none`)."""
+    if os.geteuid() == 0:
+        pytest.skip("root reads a chmod-000 folder, so the unreadable-folder failure cannot be staged (T04 G5)")
+    opt = _opt(tmp_path, "aaa", "zzz", bare=("locked",))
+    (opt / "locked" / ".claude" / "worktrees").mkdir(parents=True)
+    (opt / "locked").chmod(0o000)
+    try:
+        out = _run("--list", "--opt", str(opt))
+    finally:
+        (opt / "locked").chmod(0o755)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.splitlines() == [str(opt / "aaa"), str(opt / "zzz")], out.stdout
+    assert str(opt / "locked") in out.stderr and "Traceback" not in out.stderr, out.stderr
+
+
+def test_list_skips_a_folder_name_holding_a_newline(tmp_path: Path) -> None:
+    """T04 F3: a repo folder whose name holds a newline would print as two lines, and the sweep would run
+    `agents_up.sh --detach` on a truncated path — it is skipped with a stderr line."""
+    opt = _opt(tmp_path, "aaa", "x\ny")
+    out = _run("--list", "--opt", str(opt))
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.splitlines() == [str(opt / "aaa")], out.stdout
+    assert "newline" in out.stderr and "Traceback" not in out.stderr, out.stderr
+
+
+def test_list_names_an_unreadable_newline_folder_on_one_line(tmp_path: Path) -> None:
+    """T04 residue 5: the boot sweep notes --list's stderr line by line, so an unreadable folder whose name holds a
+    newline must still be ONE `cannot read … skipped` line — every stderr line is an `agents_bat:` line."""
+    if os.geteuid() == 0:
+        pytest.skip(
+            "root reads a chmod-000 folder, so the unreadable-folder failure cannot be staged (T04 G5)"
+        )
+    opt = _opt(tmp_path, "aaa", bare=("lo\nck",))
+    (opt / "lo\nck" / ".claude" / "worktrees").mkdir(parents=True)
+    (opt / "lo\nck").chmod(0o000)
+    try:
+        out = _run("--list", "--opt", str(opt))
+    finally:
+        (opt / "lo\nck").chmod(0o755)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.splitlines() == [str(opt / "aaa")], out.stdout
+    lines = out.stderr.splitlines()
+    assert lines and all(ln.startswith("agents_bat: ") for ln in lines), lines
+    assert any("cannot read" in ln and ln.endswith("; skipped") for ln in lines), lines
+
+
+def test_list_prints_a_symlinked_repo_once(tmp_path: Path) -> None:
+    """T04 residue 5: a symlink under --opt to a registered repo is the SAME repo (agents_up resolves `pwd -P`, so
+    both spellings build one grid) — it is listed once, the other spelling skipped with a `; skipped` line."""
+    opt = _opt(tmp_path, "real")
+    (opt / "alias").symlink_to(opt / "real")
+    out = _run("--list", "--opt", str(opt))
+    assert out.returncode == 0, out.stderr
+    assert len(out.stdout.splitlines()) == 1, out.stdout
+    assert "same repo as" in out.stderr and out.stderr.rstrip().endswith("; skipped"), out.stderr
+
+
+def test_list_of_a_missing_opt_is_refused(tmp_path: Path) -> None:
+    out = _run("--list", "--opt", str(tmp_path / "nowhere"))
+    assert out.returncode == 2 and "is not a folder" in out.stderr and out.stdout == "", out.stderr
+
+
+def test_a_down_grid_keeps_the_overflow_tabs_its_panes_imply(tmp_path: Path) -> None:
+    """W-8209a305: agents_up.sh refreshes the tabbed .bat after every grid it builds, so a refresh that read only the
+    LIVE windows would drop every down grid's `--window n` tabs. The tabs are the live `agents-<n>` windows UNION the
+    windows `--print`'s pane count implies at four panes a window: 9 panes with the grid down → windows 2 and 3; 4
+    panes with a live agents-2 (an `add` past the registry) → window 2 kept; 5 panes, live agents-4 only → 2 and 4;
+    the exact multiples, down: 8 panes → window 2 only, 4 panes → no overflow tab (an end of `n // 4 + 2` would add
+    one to each)."""
+    opt = _opt(tmp_path, "aaa", "bbb", "ccc", "ddd", "eee")
+    counts = {"aaa": 9, "bbb": 4, "ccc": 5, "ddd": 8, "eee": 4}
+    up = tmp_path / "up.sh"
+    up.write_text(
+        '#!/bin/sh\necho "session x"\nn=$(cat "$2/.panes")\ni=0\n'
+        'while [ "$i" -lt "$n" ]; do echo "pane p$i"; i=$((i+1)); done\n',
+        encoding="utf-8",
+    )
+    for repo, n in counts.items():
+        (opt / repo / ".panes").write_text(str(n), encoding="utf-8")
+    desk = tmp_path / "desk"
+    desk.mkdir()
+    tm = _fake_tmux(tmp_path, bbb="agents\nagents-2\n", ccc="agents\nagents-4\n")
+    out = _run("--opt", str(opt), "--desktop", str(desk), "--tabbed", up=str(up), **tm)
+    assert out.returncode == 0, out.stderr
+    tail = "wsl.exe --distribution Ubuntu-24.04 --exec bash -l " + AGENTS_UP + " --tab"
+    tabs = [t.rsplit(tail, 1)[1].strip() for t in _tabbed_tabs(_bat(desk, TABBED))]
+    assert tabs == [
+        "/opt/aaa",
+        "--window 2 /opt/aaa",
+        "--window 3 /opt/aaa",
+        "/opt/bbb",
+        "--window 2 /opt/bbb",
+        "/opt/ccc",
+        "--window 2 /opt/ccc",
+        "--window 4 /opt/ccc",
+        "/opt/ddd",
+        "--window 2 /opt/ddd",
+        "/opt/eee",
+    ], tabs

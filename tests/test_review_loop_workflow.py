@@ -266,13 +266,18 @@ def _harness(
     expect_fail: bool = False,
     with_opts: bool = False,
     unpinned: bool = False,
+    delay_ms: int = 0,
 ) -> tuple:
     """Execute the script's own pipeline under node with the Workflow globals stubbed: `agent` records the
     prompt it was sent and returns the canned result keyed by the call's label (`None` → a null seat),
     `parallel`/`pipeline` run the stages, `log` goes to stderr. Returns the ledger, the log text and the
     prompts by label. The script refuses a launch without `pin_manifest`, so one covering the CALL's slice
     files is injected when the key is absent — tolerating the malformed slices the refusal tests send — and
-    `unpinned=True` deletes the key instead."""
+    `unpinned=True` deletes the key instead. `delay_ms` (W-bc394d0b) makes each seat that does not throw at the
+    call stay in flight that long on a timer, and the most seats ever in flight at once is returned as a fourth
+    element — the measure the `max_seats` cap is graded by."""
+    # both return a fourth element, so together the caller could read `optsBy` as the peak (review pass 1, B-S2)
+    assert not (with_opts and delay_ms), "with_opts and delay_ms each return a fourth element — pass one"
     if unpinned:
         args = {k: v for k, v in args.items() if k != "pin_manifest"}
     elif "pin_manifest" not in args:
@@ -297,6 +302,8 @@ globalThis.pipeline = async (items, ...stages) =>
   Promise.all(items.map(async (item, i) => {{ try {{ let v = item; for (const s of stages) v = await s(v, item, i); return v; }} catch (e) {{ console.error('STAGE THREW: ' + e); return null; }} }}));
 const prompts = {{}};
 const optsBy = {{}};
+let inFlight = 0;
+let peak = 0;
 globalThis.agent = (prompt, opts) => {{
   console.error('AGENT CALLED ' + opts.label);
   prompts[opts.label] = prompt;
@@ -305,13 +312,18 @@ globalThis.agent = (prompt, opts) => {{
   // (the runtime reference); "THROW" makes the seat reject, as a transport or auth error may (W-b36e2a4a)
   if (results[opts.label] === 'SYNC_THROW') throw new Error('seat ' + opts.label + ' threw at the call');
   return (async () => {{
+    if ({delay_ms}) {{
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      try {{ await new Promise((r) => setTimeout(r, {delay_ms})); }} finally {{ inFlight -= 1; }}
+    }}
     if (results[opts.label] === 'THROW') throw new Error('seat ' + opts.label + ' rejected');
     // "THROW_UNREADABLE" rejects with a value whose `message` getter itself throws (review pass 3, A-H12)
     if (results[opts.label] === 'THROW_UNREADABLE') throw {{ get message() {{ throw new Error('boom'); }} }};
     return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
   }})();
 }};
-(async () => {{ {src} }})().then((out) => console.log(JSON.stringify({{ out, prompts, optsBy }})));
+(async () => {{ {src} }})().then((out) => console.log(JSON.stringify({{ out, prompts, optsBy, peak }})));
 """
     proc = subprocess.run(
         ["node", "--input-type=module", "-e", harness],
@@ -328,6 +340,8 @@ globalThis.agent = (prompt, opts) => {{
     doc = json.loads(proc.stdout.strip().splitlines()[-1])
     if with_opts:
         return doc["out"], proc.stderr, doc["prompts"], doc["optsBy"]
+    if delay_ms:
+        return doc["out"], proc.stderr, doc["prompts"], doc["peak"]
     return doc["out"], proc.stderr, doc["prompts"]
 
 
@@ -2283,6 +2297,86 @@ def test_the_launch_logs_its_dispatch_count_before_any_seat() -> None:
     assert line in log, log
     assert log.index(line) < log.index("AGENT CALLED"), log
     assert "stays inside this stamp" in log, log
+    assert "max_seats" not in log, "an uncapped launch's DISPATCH line is unchanged"
+    # W-bc394d0b: a capped launch keeps that text and appends the cap and the stamp it implies
+    _, log, _ = _harness({**args, "max_seats": 2}, _ONE_RETURNED)
+    dispatch = [x for x in log.splitlines() if x.startswith("DISPATCH:")]
+    assert dispatch and dispatch[0].startswith(line), log
+    assert "max_seats 2: at most 2 seat(s) run at once — stamp 2" in dispatch[0], dispatch
+    _, log, _ = _harness({**args, "max_seats": 9}, _ONE_RETURNED)
+    assert "max_seats 9: at most 9 seat(s) run at once — stamp 5" in log, log
+
+
+def _three_slices() -> tuple[dict, dict]:
+    """Three one-file slices of two finders each, every finder reading its file whole; each slice's Sonnet seat
+    raises one candidate, so a refuter arrives while other seats still queue — the shape a freed-then-re-taken slot
+    overtakes in (review pass 1, B-S1)."""
+    names = {"S": "a.py", "T": "c.py", "U": "d.py"}
+    args = {**_ARGS, "slices": [{"name": n, "files": [f], "priority": "p"} for n, f in names.items()]}
+    results = {}
+    for n, f in names.items():
+        for m in ("sonnet", "haiku"):
+            cands = [{**_cand(f"{n}-S1", 3), "file": f}] if m == "sonnet" else []
+            results[f"find:{n}:{m}"] = {"files_read": [f], "notes": f"read {f} whole", "candidates": cands}
+        verdict = {"id": f"{n}-S1", "verdict": "refuted", "command": "c", "output": "o", "mechanism": "m"}
+        results[f"refute:{n}"] = {"verdicts": [verdict]}
+    return args, results
+
+
+def test_max_seats_caps_the_seats_in_flight_and_runs_every_seat() -> None:
+    """W-bc394d0b (feedback rows 1791062753, 1791241353): a pass whose finders outnumber the stamp ran them all at
+    once, so the lead trimmed the partition or hand-split the pass. With `max_seats` K no more than K seat calls are
+    in flight, every seat still runs, and one ledger comes back; without it every finder starts at once."""
+    args, results = _three_slices()
+    out, _, prompts, peak = _harness(args, results, delay_ms=20)
+    assert peak == 6, f"uncapped, every finder starts at once (the stub's peak is real): {peak}"
+    assert sorted(prompts) == sorted(results), sorted(prompts)
+    for k in (1, 2, 4):
+        out, _, prompts, peak = _harness({**args, "max_seats": k}, results, delay_ms=20)
+        assert peak == k, (k, peak)
+        assert sorted(prompts) == sorted(results), (k, sorted(prompts))
+        assert out["dropped_slices"] == 0 and len(out["slices"]) == 3, out
+        assert all(not s["failed"] for sl in out["slices"] for s in sl["seats"]), out
+
+
+def test_an_invalid_max_seats_stops_the_launch() -> None:
+    """A cap that is not a positive integer stops the script before any seat runs and names the arg — never a
+    silent unlimited run; absent or null is no cap."""
+    for bad in (0, -1, 1.5, "3", True, [2], {"n": 2}):
+        _, err, _ = _harness({**_ARGS, "max_seats": bad}, {}, expect_fail=True)
+        assert "max_seats" in err and "AGENT CALLED" not in err, (bad, err[-400:])
+    out, _, _ = _harness({**_ARGS, "max_seats": None}, _ONE_RETURNED)
+    assert out["dropped_slices"] == 0, out
+
+
+def test_a_refuter_that_throws_at_the_call_is_retried() -> None:
+    """An agent call that throws before any promise exists escaped the refuter's `.catch` and dropped its slice.
+    It is now a null refuter, retried like a rejecting one — also when the call is started by another seat
+    releasing its slot under `max_seats: 1` (design critique, Fable 4a)."""
+    verdict = {"verdicts": [{"id": "S-S1", "verdict": "refuted", "command": "c", "output": "o", "mechanism": "m"}]}
+    found = {"files_read": ["a.py", "b.py"], "notes": "read the slice", "candidates": [_cand("S-S1", 3)]}
+    out, log, prompts = _harness(
+        _ARGS, {"find:S:sonnet": found, "refute:S": "SYNC_THROW", "refute:S:retry": verdict}
+    )
+    assert out["dropped_slices"] == 0 and "refute:S:retry" in prompts, log
+    assert out["slices"][0]["verdicts"][0]["verdict"] == "refuted", out
+    args = {
+        **_ARGS,
+        "max_seats": 1,
+        "slices": [
+            {"name": "S", "files": ["a.py", "b.py"], "priority": "p"},
+            {"name": "T", "files": ["c.py"], "priority": "p"},
+        ],
+    }
+    results = {
+        "find:S:sonnet": found,
+        "find:T:sonnet": {"files_read": ["c.py"], "notes": "read c.py whole", "candidates": []},
+        "find:T:haiku": {"files_read": ["c.py"], "notes": "read c.py whole", "candidates": []},
+        "refute:S": "SYNC_THROW",
+        "refute:S:retry": verdict,
+    }
+    out, log, prompts, peak = _harness(args, results, delay_ms=10)
+    assert peak == 1 and out["dropped_slices"] == 0 and "refute:S:retry" in prompts, log
 
 
 _GREP_RULE = "a grep not fed by a pipe or a redirect names a file or directory operand, and `-r` always names one"
@@ -2449,7 +2543,12 @@ def test_the_kept_error_is_the_first_non_blank_line_of_any_rejection() -> None:
         "[firstLine(new Error('\\n  cause here\\nstack')), firstLine({code: 1}), firstLine(undefined),"
         " firstLine('x'.repeat(400)).length, firstLine(new Error('one\\ntwo')), firstLine(new TypeError()),"
         " firstLine((() => { const c = {}; c.self = c; return c })()),"
-        " firstLine({ get message() { throw new Error('boom') } })]"
+        " firstLine({ get message() { throw new Error('boom') } }),"
+        # W-62791872: a non-Error rejection whose message is blank, null or undefined read [object Object]
+        " firstLine({message: '\\n'}), firstLine({message: null}), firstLine({message: undefined, status: 401}),"
+        " firstLine(new Error('\\n')),"
+        " firstLine(new (class ApiErr { constructor() { this.message = '' } toString() { return 'ApiErr: 401' } })()),"
+        " firstLine({toJSON() { return undefined }, message: ''}), firstLine({message: ''})]"
     )
     probe = body + f"\nconsole.log(JSON.stringify({calls}))"
     proc = subprocess.run(
@@ -2463,6 +2562,7 @@ def test_the_kept_error_is_the_first_non_blank_line_of_any_rejection() -> None:
     assert proc.returncode == 0, proc.stderr
     unreadable = "an error whose text could not be read"
     expected = ["cause here", '{"code":1}', "", 300, "one", "TypeError", unreadable, unreadable]
+    expected += ['{"message":"\\n"}', '{"message":null}', '{"status":401}', "Error:", "ApiErr: 401", "", '{"message":""}']
     assert json.loads(proc.stdout) == expected, proc.stdout
     # end to end: a seat rejecting with an unreadable value stays a failed seat; its slice is never dropped
     out, _, _ = _harness(

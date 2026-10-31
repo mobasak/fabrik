@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T11:57:46.636389Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-4fe324d4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68SSHFAFVKRB4RXSNTNVH8X",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "kaizen after the outage: the self-watch is re-armed and nothing was lost. Both items are finished, and both merge requests are in."
+}
