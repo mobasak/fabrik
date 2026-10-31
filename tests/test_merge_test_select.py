@@ -1315,20 +1315,19 @@ _CHILD_READS = {
 
 def test_every_merge_env_name_the_selector_names_is_classified():
     """The drop-list fails open for a selector input added later; this pins every name instead.
-    Every token starting FABRIK_MERGE counts whole, so a name spelled by concatenation or an
-    f-string (a bare ``FABRIK_MERGE_``), with a digit or in lower case is an unclassified name."""
-
-    def tokens(text: str) -> set[str]:
-        return set(re.findall(r"FABRIK_MERGE\w*", text))
-
-    named = tokens(SCRIPT.read_text(encoding="utf-8"))
+    It reads the source text, so it sees a name the module writes with FABRIK_MERGE in one piece:
+    each such token counts whole, a bare ``FABRIK_MERGE_`` (a concatenation or an f-string) and a
+    digit or lower-case suffix included. A name assembled from smaller pieces is beyond a text scan.
+    A child-read name must be READ (``os.environ[...]``, ``.get(...)``, ``os.getenv(...)``) by the
+    plugin or tests/conftest.py, never merely named there in a comment or a pop."""
+    named = set(re.findall(r"FABRIK_MERGE\w*", SCRIPT.read_text(encoding="utf-8")))
     selector_only = set(getattr(mts, "SELECTOR_ONLY", ()))
     assert selector_only == set(_SELECTOR_INPUTS), selector_only
     assert not selector_only & _CHILD_READS
     assert named - selector_only - _CHILD_READS == set(), named
-    readers = tokens(mts._PLUGIN) | tokens(
-        (ROOT / "tests" / "conftest.py").read_text(encoding="utf-8")
-    )
+    read = re.compile(r"""(?:environ\[|environ\.get\(|getenv\()\s*["'](FABRIK_MERGE\w*)["']""")
+    conftest = (ROOT / "tests" / "conftest.py").read_text(encoding="utf-8")
+    readers = set(read.findall(mts._PLUGIN)) | set(read.findall(conftest))
     assert _CHILD_READS - readers == set(), _CHILD_READS - readers
 
 
