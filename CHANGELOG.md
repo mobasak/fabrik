@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed — a desktop agent tab that fails stays open with its reason (2026-10-31)
-Every tab of `All Agents (tabbed).bat` and `<Repo> Agents.bat` now runs `agents_up.sh --tab`, and the Windows Terminal fragment profile sets `"closeOnExit": "never"` (W-df2e24ed, D-1388). Under `--tab` a launch with no terminal exits 1 with the reason instead of detaching silently (which let the tab close), any other failure before the attach (an argument error or a signal included) prints a `stopped (exit <n>)` line from one shared exit handler, and a `--window` tab says it is waiting. A `wsl.exe` that fails before WSL starts (the vsock fault, W-37b51748) stays readable. Regenerate once: `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed`.
+Every tab of `All Agents (tabbed).bat` and `<Repo> Agents.bat` now runs `agents_up.sh --tab`, and the Windows Terminal fragment profile sets `"closeOnExit": "never"` (W-df2e24ed, D-1388). Under `--tab` a launch with no terminal exits 1 (4 when a builder got no pane) with the reason instead of detaching silently (which let the tab close), any other failure before the attach (an argument error or a signal included) prints a `stopped (exit <n>)` line from one shared exit handler, and a `--window` tab says it is waiting. A `wsl.exe` that fails before WSL starts (the vsock fault, W-37b51748) stays readable. Regenerate once: `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed`.
 
 ### Added — every new agent grid refreshes "All Agents (tabbed).bat" itself; the tmux how-to (2026-10-30)
 `scripts/sysadmin/agents_up.sh` now starts `agents_bat.py --tabbed` in the background after every grid it builds

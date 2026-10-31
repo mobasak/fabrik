@@ -484,8 +484,9 @@ grid opens even before Windows Terminal has loaded the fragment, at the default 
 Terminal closes a tab whose command exits 0), `--tab` exits 1 (4 when a builder got no pane) and says so; any other
 non-zero exit before the attach — an argument error, or a signal as 128+signal — adds
 `agents_up: stopped (exit <n>) before attaching — the reason is above; this tab stays open`; a `--window` tab waiting
-for its grid says it is waiting. The attach itself is an exec: a failing attach shows tmux's own error. A first tab is
-still blank while its grid builds, and a `wsl.exe` that hangs rather than fails stays black until it returns. The fragment profile sets `"closeOnExit": "never"`, so a `wsl.exe` that fails before
+for its grid says it is waiting. The attach itself is an exec: a failing attach shows tmux's own error (bash's when
+tmux cannot be run). A first tab may show nothing while its grid builds, and a `wsl.exe` that hangs rather than fails
+stays black until it returns. The fragment profile sets `"closeOnExit": "never"`, so a `wsl.exe` that fails before
 WSL starts (a `UtilAcceptVsock … accept4 failed 110` on a degraded Windows-WSL link, W-37b51748) stays readable too.
 The cost: a clean tmux detach (`C-b d`) leaves a `[process exited with code 0]` tab to close by hand. Like the font,
 `closeOnExit` applies once Windows Terminal has loaded the fragment. After this change, regenerate the desktop file

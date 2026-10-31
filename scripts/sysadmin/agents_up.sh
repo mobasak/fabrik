@@ -22,7 +22,7 @@
 # launcher's form (W-df2e24ed): a Windows Terminal tab closes when its command exits 0, so under --tab a missing terminal
 # is exit 1 (4 when a builder got no pane) with the reason, never the silent detach, and any non-zero exit before the
 # attach — an argument error or a signal (128+signal) included — prints one "stopped" line; the attach itself is an exec,
-# so a failing attach shows tmux's own error instead; it takes none of --print, --detach and --pane-cmd.
+# so a failing attach shows tmux's (or bash's) own error instead; it takes none of --print, --detach and --pane-cmd.
 #
 # Window layout (W-b9ad80ae D4): four panes per window — `agents` holds the first four builders, `agents-2` the next four,
 # `agents-3` the next, and so on (a pane that cannot be created is said and the next builder takes its slot). Each
@@ -124,8 +124,8 @@ tab=0
 panecmd=0
 # ONE exit handler (bash keeps a single EXIT trap), installed before the flags are read so an argument error counts too:
 # start_grid's building-flag cleanup while BUILDING=1, and under --tab the line that keeps a failed tab readable. The
-# attach and switch-client are execs, so the handler never runs for them, whether they succeed or fail (tmux then
-# prints its own error).
+# attach and switch-client are execs, so the handler never runs for them, whether they succeed or fail (tmux, or bash
+# when tmux cannot be run, then prints its own error).
 BUILDING=0
 on_exit() {
   local rc=$?
@@ -137,6 +137,8 @@ on_exit() {
 }
 trap on_exit EXIT
 winn=""
+# --tab is seen wherever it stands, so an argument error before it (or a --tab after the repo) still prints the line
+for a in "$@"; do [ "$a" = --tab ] && tab=1; done
 while [ $# -gt 0 ]; do
   case "$1" in
     --print) print=1; shift ;;

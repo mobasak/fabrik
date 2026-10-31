@@ -1654,12 +1654,15 @@ def test_tab_usage_errors_and_no_room_print_the_stopped_line(tmp_path: Path) -> 
         ("--tab", "--window", "x"),
         ("--tab", "--window", "2", "--window", "3"),
         ("--tab", "--window", "2", "--print"),
+        ("--window", "x", "--tab"),  # review round 2: --tab is seen wherever it stands
     ):
         out = _run(*argv, str(repo), home=home)
         assert out.returncode == 2, (argv, out.stderr)
         assert f"stopped (exit 2) {STOPPED}" in out.stderr, (argv, out.stderr)
     out = _run("--window", "x", str(repo), home=home)
     assert out.returncode == 2 and STOPPED not in out.stderr, out.stderr
+    out = _run(str(repo), "--tab", home=home)  # flags after the repo are a usage error, still said under --tab
+    assert out.returncode == 2 and f"stopped (exit 2) {STOPPED}" in out.stderr, out.stderr
     split = _tmux_home(tmp_path / "split", repo, has=False, owner=None)
     (split / "tmux-splitfail").write_text("", encoding="utf-8")
     out = _run("--tab", str(repo), home=split)
