@@ -1873,12 +1873,142 @@ def _leg_env(ctx: _Ctx, env: dict) -> dict:
     return env
 
 
+# --- box-wide leg admission (W-fbd1d4b9 part c, D-1381) -----------------------------------------
+# Every repo's merge legs share capped_run.sh's ONE test slice (FABRIK_TEST_SLICE_MAX, 12G) and the box's
+# cores. Measured 2026-10-29..31 from the user journal: of the 242 minutes any of 53 legs ran, two or more
+# ran together for 189 (up to six — hub pretests, queue children and web-ecommerce-factory's legs); hub
+# legs beside 1.5+ others took a median 10.9 min, against 1.05 alone. So a leg starts only when the
+# DECLARED memory of the legs already running plus its own fits the slice: an 8G hub leg runs beside one
+# 4G leg, never beside another 8G one. Each running leg holds a flock on its own lease file under
+# LEG_ADMIT_DIR (box-wide, every repo); a holder that dies drops its lock with its process, so a lease
+# nobody holds is stale by construction and is deleted. The wait sits OUTSIDE the leg's budget clock
+# (`ctx.test_deadline` moves by the seconds waited) and is bounded by LEG_ADMIT_WAIT_S, after which the
+# leg starts anyway and says so — a stuck holder must not stall every merge on the box (fail-open, said).
+# Cobra (D-253): the cheapest way past admission is a smaller declared `# merge-test-mem:`; capped_run
+# kills a leg past its own declaration at that ceiling, so under-declaring trades the wait for a red.
+LEG_ADMIT_WAIT_S = 1800
+LEG_ADMIT_POLL_S = 5.0
+_LEASE_FDS: dict[int, Path] = {}  # this process's held lease fds; a forked child closes them
+
+
+def _drop_inherited_leases() -> None:
+    """In a forked child: close the inherited lease fds, so the lease ends with the PARENT's leg."""
+    for fd in list(_LEASE_FDS):
+        with contextlib.suppress(OSError):
+            os.close(fd)
+    _LEASE_FDS.clear()
+
+
+os.register_at_fork(after_in_child=_drop_inherited_leases)
+
+
+def _admit_dir() -> Path:
+    return Path(os.environ.get("FABRIK_MERGE_LEG_DIR") or Path.home() / ".claude/state/merge-legs")
+
+
+def _size_mib(value: str | None, default: int) -> int:
+    """capped_run.sh's size grammar (`<n>K|M|G`) in MiB; ``default`` for anything else."""
+    m = re.fullmatch(r"([1-9][0-9]{0,8})([KMG])", (value or "").strip())
+    if not m:
+        return default
+    n = int(m.group(1))
+    return max(1, n // 1024) if m.group(2) == "K" else n * (1024 if m.group(2) == "G" else 1)
+
+
+def _held_leases(adir: Path) -> list[dict]:
+    """The leases a live leg holds; a lease file nobody holds (its leg died) is deleted. Called
+    under the admission lock, so no lease is half-written while it reads."""
+    held = []
+    for path in sorted(adir.glob("lease-*.json")):
+        try:
+            fd = os.open(path, os.O_RDONLY)
+        except OSError:
+            continue
+        try:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                try:
+                    rec = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    rec = {}
+                mib = rec.get("mib") if isinstance(rec, dict) else None
+                held.append(rec if isinstance(mib, int) and mib > 0 else {"mib": LEG_MEM_MAX_MIB})
+                continue
+            path.unlink(missing_ok=True)  # nobody holds it: its leg is gone
+        finally:
+            os.close(fd)
+    return held
+
+
+@contextlib.contextmanager
+def _admitted(ctx: _Ctx):
+    """Hold a box-wide lease for one leg; yields the note the leg's label carries ("" when no wait)."""
+    mine = _size_mib(ctx.leg_mem, _size_mib(os.environ.get("FABRIK_TEST_MEM_MAX"), 4096))
+    cap = _size_mib(os.environ.get("FABRIK_TEST_SLICE_MAX"), 12288)
+    adir = _admit_dir()
+    t0 = time.monotonic()
+    note = ""
+    lease_fd = -1
+    lease = adir / f"lease-{os.getpid()}-{secrets.token_hex(4)}.json"
+    try:
+        adir.mkdir(parents=True, exist_ok=True)
+        while True:
+            lock_fd = os.open(adir / "admission.lock", os.O_RDWR | os.O_CREAT, 0o644)
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)
+                held = _held_leases(adir)
+                used = sum(int(r["mib"]) for r in held)
+                over = time.monotonic() - t0 >= LEG_ADMIT_WAIT_S
+                if not held or used + mine <= cap or over:
+                    lease_fd = os.open(lease, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o644)
+                    fcntl.flock(lease_fd, fcntl.LOCK_EX)
+                    _LEASE_FDS[lease_fd] = lease
+                    os.write(
+                        lease_fd,
+                        json.dumps(
+                            {"mib": mine, "pid": os.getpid(), "repo": str(ctx.main)}
+                        ).encode(),
+                    )
+                    if over and held and used + mine > cap:
+                        note = (
+                            f"; admission: started after the {LEG_ADMIT_WAIT_S}s wait with {len(held)} leg(s) "
+                            f"holding {used} MiB of the {cap} MiB test slice"
+                        )
+                    break
+            finally:
+                os.close(lock_fd)
+            time.sleep(LEG_ADMIT_POLL_S)
+    except OSError as exc:  # no admission is not a red: the leg runs, and says it ran unadmitted
+        note = f"; admission: not checked ({exc.strerror or exc})"
+    waited = time.monotonic() - t0
+    ctx.test_deadline += waited  # the wait is outside the leg's budget clock
+    if waited >= 1 and not note:
+        note = f"; admitted after a {int(waited)}s wait for the box's test slice"
+    try:
+        yield note
+    finally:
+        if lease_fd >= 0:
+            _LEASE_FDS.pop(lease_fd, None)
+            lease.unlink(missing_ok=True)
+            os.close(lease_fd)
+
+
 def _run_owner_leg(
     ctx: _Ctx, wt: Path, script: str, touched: list[str]
 ) -> tuple[subprocess.CompletedProcess, str]:
-    """One run of the owner's tests in ``wt``: ``script`` (the base's merge-tests) when given,
-    else pytest over ``touched``. Returns the finished process and its label. Its limit is
-    ``_leg_timeout``'s, kept on ``ctx.leg_limit`` so the caller can tell a spent budget from a red."""
+    """One run of the owner's tests in ``wt``, admitted box-wide first (``_admitted``): ``script``
+    (the base's merge-tests) when given, else pytest over ``touched``. Returns the finished process and
+    its label. Its limit is ``_leg_timeout``'s, kept on ``ctx.leg_limit`` so the caller can tell a spent
+    budget from a red."""
+    with _admitted(ctx) as note:
+        run, label = _run_owner_leg_admitted(ctx, wt, script, touched)
+    return run, label + note
+
+
+def _run_owner_leg_admitted(
+    ctx: _Ctx, wt: Path, script: str, touched: list[str]
+) -> tuple[subprocess.CompletedProcess, str]:
     limit = ctx.leg_limit = _leg_timeout(ctx)
     if script:
         pythonpath = os.pathsep.join(

@@ -165,6 +165,7 @@ def test_a_tests_own_monkeypatch_undo_cannot_unpin_the_box_state_seams(
         "COMMAND_RUN_DIR",
         "KAIZEN_EVENTS_DIR",
         "CLAUDE_SOUND_LOCKDIR",  # the sixth pin, missed by the first cut (Delta 21 seat B)
+        "FABRIK_MERGE_LEG_DIR",  # merge_request.py's box-wide leg leases (W-fbd1d4b9 part c)
     ):
         val = os.environ.get(var)
         assert val and Path(val).resolve().is_relative_to(base), (var, val)
