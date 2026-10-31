@@ -55,9 +55,16 @@ def test_the_units_run_the_janitor_hourly_and_verify() -> None:
     if analyze is None:
         pytest.skip("systemd-analyze not installed")
     r = subprocess.run(
-        [analyze, "--user", "verify", str(UNITS / "scratch-sweep.service"),
-         str(UNITS / "scratch-sweep.timer")],
-        capture_output=True, text=True, timeout=60,
+        [
+            analyze,
+            "--user",
+            "verify",
+            str(UNITS / "scratch-sweep.service"),
+            str(UNITS / "scratch-sweep.timer"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
     assert r.returncode == 0 and (r.stdout + r.stderr).strip() == "", r.stdout + r.stderr
 
@@ -146,8 +153,10 @@ def test_the_installer_enables_the_timer_and_never_touches_the_crontab(tmp_path:
     ("kw", "says"),
     [
         ({"linger": "Linger=no"}, "linger"),
-        ({"verify_says": "x.timer:3: Unknown key name 'Bogus' in section 'Timer', ignoring."},
-         "Unknown key"),
+        (
+            {"verify_says": "x.timer:3: Unknown key name 'Bogus' in section 'Timer', ignoring."},
+            "Unknown key",
+        ),
         # a verify that fails silently: its exit code alone must refuse
         ({"verify_rc": 1}, "verify exited 1"),
     ],
