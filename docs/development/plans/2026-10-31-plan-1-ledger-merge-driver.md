@@ -66,7 +66,7 @@ Appetite: 40
    - add a `git rebase` leg to the red-first test, asserting the rebase is clean;
    - rewrite the no-regression test so BOTH sides change the SAME ledger at far-apart lines: git calls a driver only for a file changed on both sides, and plain git merges such edits cleanly. Log the driver's own exit (a wrapper script that appends `$?` to a file) and assert that exit was 0, the merged blob is byte-identical to the same merge with no driver configured, and the merge exited 0;
    - rewrite the refusal test's fixture so the edit of a landed row sits next to the other side's insertion (ours edits `| D-2 |` and appends a row, theirs appends a row after `| D-2 |`). The prototype's fixture put the edit two lines from the insertion, so `git merge-file` took it cleanly and the verb exited 0; and merge the same pair through git with the driver registered, asserting the merge exits non-zero and the file holds markers with both sides;
-   - add to the duplicate-id test the verb's own exit 1 with `%A` byte-identical, run directly as the refusal test does;
+   - add to the duplicate-id test the verb's own exit 1 with `%A` byte-identical, run directly as the refusal test does, plus one case that tells the spec's rule from the prototype's looser one: base holds `| D-5 |`, ours adds `| D-7 |`, theirs adds a second `| D-5 |` row; the verb must exit 1 (the looser rule exits 0 there);
    - add a test that patches `os.replace` to raise, then asserts `%A` is untouched and no `.merge-ledger-` temp file is left (the only path that unlinks one).
 4. RED then GREEN, using the prototype tests against `b938c583e` with no verb (§ Evidence E1):
    - 5 tests fail on `invalid choice: 'merge-ledger'`;
