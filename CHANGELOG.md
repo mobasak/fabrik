@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — master's three load-flaky tests read red no more in a busy merge leg (2026-10-31)
+The prune in-flight test aged its files from a clock captured at import, so a test run 20+ minutes into a suite
+lost its in-flight sidechain; it reads the clock at call time now. The nested-done command_run tests scanned the live
+hub on every `step` (6-14 s against a 30 s timeout); they start from their own run folder. The gate's human-vs-JSON
+test compared two live gate runs (205 s) that differ when a check times out; it renders one run's rows through both
+modes in-process (0.05 s). A merge leg no longer re-runs these on the base (D-1410, W-a9b3bc15).
+
 ### Fixed — a refusal reply quoting an after-merge red no longer outgrows mail.py's 64 KB cap (2026-10-31)
 `scripts/merge_request.py` cuts each red test id shown in an after-merge red item's title to 160 characters (the full
 list stays in `after-merge/status.json`) and cuts a quoted item title to 1,500 characters and every reason, evidence and warning line a reply or ack carries to 4,000, with the whole reply bounded at 48 KB in the preflight refusal. One

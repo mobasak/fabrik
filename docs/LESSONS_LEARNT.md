@@ -8311,3 +8311,14 @@ wrappers would have killed a landing mid-push.
 **Why:** a deadline extension is local; every bound computed from the old worst case is not.
 **How to apply:** when a change adds time inside a bounded step, grep every constant and wrapper derived from that
 step's worst case and move them in the same change, with one allowance per invocation so the growth is counted once.
+
+## A "load flake" is usually suite time or a live resource (2026-10-31, W-a9b3bc15)
+D-1398's census recorded three tests as load flakes: red under a busy box, green alone. None was load alone. One
+aged files from a clock captured at import, so it broke once the suite ran 20+ minutes past collection; one ran its
+helper from the hub checkout and scanned the live tree against a 30 s timeout; one compared two live gate runs that
+differ whenever a check times out in one.
+**Why:** "passes alone" also means "runs right after its import" and "runs while the live tree is small and idle";
+both read as load from outside.
+**How to apply:** before recording a flake, prove its time coupling with REAL elapsed time (shorten the window by its
+env knob, sleep after collection) and profile the slow call; patching `time.time` lies when the code bound the
+function at import (`field(default_factory=time.time)`).
