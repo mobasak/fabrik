@@ -1,7 +1,7 @@
 """Tests for scripts/sysadmin/fabrik_deck.py — the Deck's code-server as a systemd user service (W-e89a9b5b, D-1106).
 
-Every test drives the script as a subprocess against a temporary HOME. `systemctl` and `loginctl` are fake executables
-on PATH that record their argv; `code-server` is a fake at <HOME>/.local/bin/code-server (the script execs it by that
+Every test drives the script as a subprocess against a temporary HOME. `systemctl`, `loginctl`, `sudo` and
+`systemd-tmpfiles` are fake executables on PATH that record their argv; `code-server` is a fake at <HOME>/.local/bin/code-server (the script execs it by that
 absolute path). `systemd-analyze` is the real tool, skipped where it is absent.
 """
 
@@ -20,6 +20,10 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "fabrik_deck.py"
 UNIT = "fabrik-deck-code.service"
+TMP_STOCK = (
+    "D /tmp 1777 root root 30d"  # Ubuntu's /usr/lib/tmpfiles.d/tmp.conf: wipe /tmp at boot (D-1389)
+)
+TMP_OFF = "d /tmp 1777 root root 30d"  # the installer's override: age only
 DECK_UNIT = "fabrik-deck.service"
 
 # The fakes run under this interpreter by absolute path, so a test may drop /usr/bin from PATH.
@@ -29,7 +33,8 @@ FAKE = (
     + """import json, os, sys
 log = os.environ["FAKE_LOG"]
 with open(log, "a") as f:
-    f.write(json.dumps({{"tool": {tool!r}, "argv": sys.argv[1:], "xdg": os.environ.get("XDG_RUNTIME_DIR")}}) + "\\n")
+    f.write(json.dumps({{"tool": {tool!r}, "argv": sys.argv[1:], "xdg": os.environ.get("XDG_RUNTIME_DIR"),
+                        "systemd_env": {{k: os.environ.get(k) for k in ("SYSTEMD_COLORS", "SYSTEMD_URLIFY", "SYSTEMD_PAGER")}}}}) + "\\n")
 out = os.environ.get("FAKE_{upper}_STDOUT", "")
 if out:
     print(out)
@@ -68,8 +73,13 @@ def box(tmp_path: Path):
     (hub / "scripts" / "sysadmin").mkdir(parents=True)
     (hub / "scripts" / "sysadmin" / "fabrik_deck.py").write_text("# stand-in for the hub copy\n")
     _exe(home / ".local" / "bin" / "code-server", FAKE_CODE_SERVER)
-    for tool in ("systemctl", "loginctl"):
-        _exe(fakebin / tool, FAKE.format(tool=tool, upper=tool.upper()))
+    for tool, upper in (
+        ("systemctl", "SYSTEMCTL"),
+        ("loginctl", "LOGINCTL"),
+        ("sudo", "SUDO"),
+        ("systemd-tmpfiles", "TMPFILES"),
+    ):
+        _exe(fakebin / tool, FAKE.format(tool=tool, upper=upper))
     analyze = shutil.which("systemd-analyze")
     if analyze:
         os.symlink(analyze, fakebin / "systemd-analyze")
@@ -87,6 +97,8 @@ def box(tmp_path: Path):
         "PATH": f"{fakebin}:/usr/bin:/bin",
         "FAKE_LOG": str(log),
         "FAKE_LOGINCTL_STDOUT": "Linger=yes",
+        # the box as the 2026-10-31 fix left it: the boot wipe already off, so install owes no sudo write
+        "FAKE_TMPFILES_STDOUT": f"# /etc/tmpfiles.d/tmp.conf\n{TMP_OFF}",
         "LANG": "C.UTF-8",
     }
     if os.environ.get("XDG_RUNTIME_DIR"):
@@ -425,6 +437,362 @@ def test_install_env_file_reads_like_systemd(box):
         "FABRIK_DECK, DISPLAY, WAYLAND_DISPLAY" in r.stderr
     )
     assert stat.S_IMODE(box.env_file.stat().st_mode) == 0o600
+
+
+# W-0c208792 (D-1389): install turns Ubuntu's boot-time /tmp wipe off ------------------------------------------------
+# A fake systemd-tmpfiles that reads the stock `D` line until the fake sudo has "installed" the override, then our `d`
+# line under the override's path — the real --cat-config's shape (a `# <file>` comment before each file's lines).
+FAKE_TMPFILES_FLIP = (
+    f"""#!{sys.executable}
+"""
+    + """import json, os, sys
+with open(os.environ["FAKE_LOG"], "a") as f:
+    f.write(json.dumps({"tool": "systemd-tmpfiles", "argv": sys.argv[1:], "xdg": None,
+                        "systemd_env": {k: os.environ.get(k) for k in ("SYSTEMD_COLORS", "SYSTEMD_URLIFY", "SYSTEMD_PAGER")}}) + "\\n")
+if os.path.exists(os.environ["FLIP_MARKER"]):
+    print("# /etc/tmpfiles.d/tmp.conf")
+    print(open(os.environ["FLIP_MARKER"]).read(), end="")
+else:
+    print("# /usr/lib/tmpfiles.d/tmp.conf")
+    print(os.environ.get("FLIP_STOCK", "D /tmp 1777 root root 30d"))
+"""
+)
+FAKE_SUDO_INSTALL = (
+    f"""#!{sys.executable}
+"""
+    + """import json, os, shutil, sys
+with open(os.environ["FAKE_LOG"], "a") as f:
+    f.write(json.dumps({"tool": "sudo", "argv": sys.argv[1:], "xdg": None}) + "\\n")
+if os.environ.get("FAKE_SUDO_RC", "0") != "0":
+    sys.exit(int(os.environ["FAKE_SUDO_RC"]))
+if os.environ.get("SUDO_INSTALLS", "1") == "1":
+    shutil.copyfile(sys.argv[-2], os.environ["FLIP_MARKER"])  # the staged file, as `install SRC DST` would
+"""
+)
+
+
+def _tmpfiles_box(box, stock: str = TMP_STOCK) -> dict[str, str]:
+    for tool, text in (("systemd-tmpfiles", FAKE_TMPFILES_FLIP), ("sudo", FAKE_SUDO_INSTALL)):
+        (box.fakebin / tool).unlink()
+        _exe(box.fakebin / tool, text)
+    return {"FLIP_MARKER": str(box.tmp / "etc-tmp.conf"), "FLIP_STOCK": stock}
+
+
+def _tools_in_order(box) -> list[str]:
+    return [json.loads(line)["tool"] for line in box.log.read_text().splitlines()]
+
+
+def test_install_writes_the_tmpfiles_override_and_proves_it(box):
+    extra = _tmpfiles_box(box)
+    box.env_file.parent.mkdir(parents=True)
+    box.env_file.write_text(
+        f"FABRIK_DECK_CODE_PORT={_free_port()}\nFABRIK_DECK_PORT={_free_port()}\n"
+    )
+    r = box.run("install", "--hub", str(box.hub), "--start", **extra)
+    assert r.returncode == 0, r.stderr
+    (sudo,) = box.calls("sudo")
+    assert sudo[:9] == ["-n", "install", "-D", "-m", "0644", "-o", "root", "-g", "root"], sudo
+    assert sudo[-1] == "/etc/tmpfiles.d/tmp.conf" and not Path(sudo[-2]).exists(), (
+        sudo
+    )  # staged copy removed
+    written = Path(extra["FLIP_MARKER"]).read_text()
+    assert written.startswith("# Written by scripts/sysadmin/fabrik_deck.py install")
+    assert [line for line in written.splitlines() if not line.startswith("#")] == [TMP_OFF]
+    assert "no longer wiped at boot" in r.stdout
+    # the root-level step is the LAST act: after daemon-reload, enable, start and the is-enabled report
+    tools = _tools_in_order(box)
+    assert tools[-1] == "systemd-tmpfiles" and tools[-2] == "sudo", (
+        tools
+    )  # the write, then the post-write proof
+    assert tools.index("sudo") > max(i for i, tool in enumerate(tools) if tool == "systemctl"), (
+        tools
+    )
+    assert [a[1] for a in box.calls("systemctl")][-2:] == ["is-enabled", "is-enabled"]
+    # --cat-config is read plain (no pager; the env strips colours), once before any write and once after it
+    assert box.calls("systemd-tmpfiles") == [["--cat-config", "--no-pager"]] * 2, box.calls(
+        "systemd-tmpfiles"
+    )
+    envs = [
+        json.loads(line)["systemd_env"]
+        for line in box.log.read_text().splitlines()
+        if json.loads(line)["tool"] == "systemd-tmpfiles"
+    ]
+    assert envs == [{"SYSTEMD_COLORS": "0", "SYSTEMD_URLIFY": "0", "SYSTEMD_PAGER": ""}] * 2, envs
+    # idempotent: the second run reads `d` and owes nothing
+    box.log.write_text("")
+    r = box.run("install", "--hub", str(box.hub), **extra)
+    assert r.returncode == 0 and box.calls("sudo") == [], (r.stderr, box.calls("sudo"))
+
+
+@pytest.mark.parametrize(
+    "case, stdout",
+    [
+        ("our-d-line", f"# /etc/tmpfiles.d/tmp.conf\n{TMP_OFF}"),
+        (
+            "another-drop-in-d",
+            f"# /etc/tmpfiles.d/00-tmp.conf\n{TMP_OFF}\n\n# /etc/tmpfiles.d/tmp.conf\n{TMP_OFF}",
+        ),
+        ("masked-empty-file", "# /etc/tmpfiles.d/tmp.conf\n"),
+        ("masked-comment-only", "# /etc/tmpfiles.d/tmp.conf\n# D /tmp was here\n"),
+        ("no-tmp-line-at-all", "# /usr/lib/tmpfiles.d/x.conf\nd /run/x 0755 root root -\n"),
+        ("quoted-d", '# /etc/tmpfiles.d/tmp.conf\nd "/tmp" 1777 root root 30d\n'),
+        ("non-D-type", "# /etc/tmpfiles.d/tmp.conf\nq /tmp 1777 root root 30d\n"),
+    ],
+)
+def test_install_owes_no_sudo_when_no_boot_wipe_is_in_effect(box, case, stdout):
+    r = box.run("install", "--hub", str(box.hub), FAKE_TMPFILES_STDOUT=stdout)
+    assert r.returncode == 0, (case, r.stderr)
+    assert box.calls("sudo") == [] and "tmpfiles" not in r.stdout
+
+
+@pytest.mark.parametrize("case", ["sudo-fails", "override-does-not-take"])
+def test_install_exits_1_when_the_override_is_refused_or_does_not_take(box, case):
+    extra = _tmpfiles_box(box)
+    extra["FAKE_SUDO_RC" if case == "sudo-fails" else "SUDO_INSTALLS"] = (
+        "1" if case == "sudo-fails" else "0"
+    )
+    r = box.run("install", "--hub", str(box.hub), **extra)
+    assert r.returncode == 1 and "Traceback" not in r.stderr, r.stderr
+    (sudo,) = box.calls("sudo")
+    assert not Path(sudo[-2]).exists(), sudo  # the staged copy is removed on the failure path too
+    if case == "sudo-fails":
+        assert "still wiped at boot" in r.stderr
+        assert "sudo tee /etc/tmpfiles.d/tmp.conf" in r.stderr  # the by-hand line
+    else:
+        assert "still carries a boot-time wipe" in r.stderr and TMP_STOCK in r.stderr
+        assert "/usr/lib/tmpfiles.d/tmp.conf" in r.stderr  # the file carrying the D line is named
+    # the Deck install itself completed: the one root-level step was last
+    assert [a[1] for a in box.calls("systemctl")][-2:] == ["is-enabled", "is-enabled"]
+    assert box.unit_path.exists()
+
+
+@pytest.mark.parametrize(
+    "case, stdout",
+    [
+        ("foreign-at-our-path", f"# /etc/tmpfiles.d/tmp.conf\n{TMP_STOCK}"),
+        (
+            "our-d-plus-another-D",
+            f"# /etc/tmpfiles.d/tmp.conf\n{TMP_OFF}\n\n# /etc/tmpfiles.d/zz.conf\n{TMP_STOCK}",
+        ),
+        (
+            "quoted-D-elsewhere",
+            f'# /etc/tmpfiles.d/tmp.conf\n{TMP_OFF}\n\n# /etc/tmpfiles.d/zz.conf\nD "/tmp" 1777 root root 30d',
+        ),
+        (
+            "specifier-D-elsewhere",
+            f"# /etc/tmpfiles.d/aa.conf\nD %T 1777 root root -\n\n# /etc/tmpfiles.d/tmp.conf\n{TMP_OFF}",
+        ),
+        ("cat-config-fails", ""),
+        ("no-systemd-tmpfiles", ""),
+        ("no-sudo", f"# /usr/lib/tmpfiles.d/tmp.conf\n{TMP_STOCK}"),
+    ],
+)
+def test_install_refuses_a_foreign_override_before_any_write(box, case, stdout):
+    extra = {"FAKE_TMPFILES_STDOUT": stdout}
+    if case == "cat-config-fails":
+        extra["FAKE_TMPFILES_RC"] = "1"
+    elif case == "no-sudo":
+        (box.fakebin / "sudo").unlink()
+        extra["PATH"] = str(box.fakebin)  # the real sudo sits in /usr/bin
+    elif case == "no-systemd-tmpfiles":
+        if not box.has_analyze:
+            pytest.skip("systemd-analyze absent: install refuses on it first")
+        (box.fakebin / "systemd-tmpfiles").unlink()
+        extra["PATH"] = str(
+            box.fakebin
+        )  # the real one sits in /usr/bin; fakebin keeps its systemd-analyze link
+    r = box.run("install", "--hub", str(box.hub), **extra)
+    assert r.returncode == 1 and "Traceback" not in r.stderr, (case, r.stderr)
+    if case == "foreign-at-our-path":
+        assert (
+            "not this script's file to rewrite" in r.stderr
+            and "/etc/tmpfiles.d/tmp.conf: D /tmp" in r.stderr
+        )
+    elif case in ("our-d-plus-another-D", "quoted-D-elsewhere"):
+        assert (
+            "not this script's file to rewrite" in r.stderr
+            and "/etc/tmpfiles.d/zz.conf: D" in r.stderr
+        ), r.stderr
+    elif case == "specifier-D-elsewhere":
+        assert "/etc/tmpfiles.d/aa.conf: D %T" in r.stderr, r.stderr
+    elif case == "cat-config-fails":
+        assert "--cat-config failed before any write" in r.stderr
+    elif case == "no-sudo":
+        assert (
+            "sudo is not installed" in r.stderr and "sudo tee /etc/tmpfiles.d/tmp.conf" in r.stderr
+        )
+    else:
+        assert "systemd-tmpfiles is not installed" in r.stderr
+    assert not box.unit_path.exists() and not box.env_file.exists() and not box.config_yaml.exists()
+    assert box.calls("systemctl") == [] and box.calls("sudo") == []
+
+
+@pytest.mark.skipif(shutil.which("systemd-tmpfiles") is None, reason="systemd-tmpfiles absent")
+def test_the_override_shadows_the_stock_line_under_the_real_systemd_tmpfiles(tmp_path):
+    """The claim the installer rests on: a `d /tmp` line in /etc/tmpfiles.d/tmp.conf shadows the stock `D /tmp` line
+    of /usr/lib/tmpfiles.d/tmp.conf (same file name wins), so --cat-config reads ONE /tmp line, lowercase d."""
+    spec = importlib.util.spec_from_file_location("fabrik_deck_tmpfiles_probe", SCRIPT)
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    root = tmp_path / "root"
+    (root / "usr" / "lib" / "tmpfiles.d").mkdir(parents=True)
+    (root / "etc" / "tmpfiles.d").mkdir(parents=True)
+    (root / "usr" / "lib" / "tmpfiles.d" / "tmp.conf").write_text(
+        f"# stock\n{TMP_STOCK}\n#q /var/tmp 1777 root root 30d\n"
+    )
+
+    def cat() -> str:
+        r = subprocess.run(
+            ["systemd-tmpfiles", "--cat-config", f"--root={root}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert r.returncode == 0, r.stderr
+        return r.stdout
+
+    stock = cat()
+    stock_file = str(root / "usr" / "lib" / "tmpfiles.d" / "tmp.conf")
+    ours = str(root / "etc" / "tmpfiles.d" / "tmp.conf")
+    assert (
+        m._tmp_lines(stock) == [(stock_file, TMP_STOCK, "D", "/tmp")]
+        and m._tmpfiles_plan(stock) == "write"
+    )
+    (root / "etc" / "tmpfiles.d" / "tmp.conf").write_text(m.TMPFILES_TEXT)
+    merged = cat()
+    assert m._tmp_lines(merged) == [(ours, TMP_OFF, "d", "/tmp")], merged
+    assert m._tmp_boot_wipe_off(merged) and m._tmpfiles_plan(merged) == "off"
+    # a differently named drop-in does NOT shadow the stock line: the D stays in effect (measured: it wipes)
+    (root / "etc" / "tmpfiles.d" / "tmp.conf").rename(root / "etc" / "tmpfiles.d" / "zz-tmp.conf")
+    two = cat()
+    assert len(m._tmp_lines(two)) == 2 and m._tmp_wipe_lines(two) == [(stock_file, TMP_STOCK)]
+    assert not m._tmp_boot_wipe_off(two) and m._tmpfiles_plan(two) == "write"
+    # a hand-written file at OUR path that keeps the wipe is foreign, never rewritten
+    (root / "etc" / "tmpfiles.d" / "zz-tmp.conf").unlink()
+    (root / "etc" / "tmpfiles.d" / "tmp.conf").write_text(f"{TMP_STOCK}\n")
+    assert m._tmpfiles_plan(cat()) == "foreign"
+    # the stock name masked (an empty file; tmpfiles.d(5)'s /dev/null symlink reads the same): nothing wipes
+    (root / "etc" / "tmpfiles.d" / "tmp.conf").write_text("")
+    assert m._tmp_lines(cat()) == [] and m._tmpfiles_plan(cat()) == "off"
+    # every spelling systemd reads as /tmp is a /tmp line here: quoted, the %T specifier, slashes and dots
+    (root / "etc" / "tmpfiles.d" / "tmp.conf").write_text(m.TMPFILES_TEXT)
+    zz = root / "etc" / "tmpfiles.d" / "zz.conf"
+    for spelling in ('"/tmp"', "%T", "/tmp/", "//tmp", "/tmp/.", "/./tmp"):
+        zz.write_text(f"D {spelling} 1777 root root 30d\n")
+        out = cat()
+        assert m._tmp_wipe_lines(out) == [(str(zz), f"D {spelling} 1777 root root 30d")], (
+            spelling,
+            out,
+        )
+        assert m._tmpfiles_plan(out) == "foreign", (
+            spelling
+        )  # our file is in effect, so the refusal names zz.conf
+    zz.unlink()
+    # every shape measured to wipe /tmp's contents as a whole at boot: the %T specifier as a prefix, `..` resolving to
+    # /tmp or to `/` (D /tmp/.. emptied the whole staged root), D/R on /tmp, r/R on a glob every direct child matches,
+    # a quoted type field, C-escaped paths (hex, octal)
+    for line in (
+        "D %T/ 1777 root root 30d",
+        "D %T/. 1777 root root 30d",
+        "D /tmp/claude-1000/.. 1777 root root 30d",
+        "D /tmp/../tmp 1777 root root 30d",
+        "D /tmp/.. 1777 root root 30d",
+        "R /tmp - - - -",
+        "R /tmp/* - - - -",
+        "R /tmp/?* - - - -",
+        "r /tmp/* - - - -",
+        '"D" /tmp 1777 root root 30d',
+        "'D' /tmp 1777 root root 30d",
+        "D /t\\x6dp 1777 root root 30d",
+        "D \\057tmp 1777 root root 30d",
+    ):
+        zz.write_text(f"{line}\n")
+        assert m._tmp_wipe_lines(cat()) == [(str(zz), line)], line
+    # `D /tmp/x/..` with no x is ignored by systemd (measured) yet counted here: a refusal on a dead line, never a
+    # wrong write — the lexical `..` resolution is what catches `D /tmp/claude-1000/..` above
+    zz.write_text("D /tmp/x/.. 1777 root root 30d\n")
+    assert m._tmp_wipe_lines(cat()) == [(str(zz), "D /tmp/x/.. 1777 root root 30d")]
+    # NOT wipes of /tmp as a whole: lines systemd rejects (rc 65: a relative path, an unmatched quote early or late, an
+    # escape systemd does not take, an unfinished escape), lines systemd drops or that remove nothing (a bad escape in
+    # a trailing field, `D` on a glob, `e`, `r /tmp` on a non-empty directory, `R /tmp/.*`), and the stock shapes that
+    # clear ONE named entry or a narrower pattern under /tmp — snapd, systemd and x11 ship these on every Ubuntu box
+    # (each measured to leave /tmp's other contents)
+    for line in (
+        "D tmp 1777 root root 30d",
+        'D "/tmp 1777 root root 30d',
+        'D /tmp 1777 root root "30d',
+        "D /t\\qmp 1777 root root 30d",
+        "D /tmp\\e 1777 root root 30d",
+        "D /t\\777mp 1777 root root 30d",
+        'D "/t\\N{LATIN SMALL LETTER M}p" 1777 root root 30d',
+        "D /tmp 1777 root root 30d\\",
+        "D /tmp 1777 root root 30d \\q",
+        "D /tmp/* 1777 root root 30d",
+        "e /tmp - - - 0",
+        "r /tmp - - - -",
+        "R /tmp/.* - - - -",
+        "D! /tmp/snap-private-tmp 0700 root root -",
+        "R! /tmp/systemd-private-* - - - - -",
+        "D! /tmp/.X11-unix 1777 root root 10d",
+        "r! /tmp/.X[0-9]*-lock - - - - -",
+        "D /tmp/claude-1000 0700 root root -",
+        "R /tmp/*.txt - - - -",
+        "R /tmp/*/* - - - -",
+        "r /tmp/old.txt - - - -",
+    ):
+        zz.write_text(f"{line}\n")
+        assert m._tmp_wipe_lines(cat()) == [], line
+    zz.unlink()
+    # the LIVE POPULATION: this box's stock files that name /tmp, laid over the staged tree with our shadow — install
+    # must read it as off, or no Ubuntu box could ever install (seat-1 pass 4, 2026-10-31)
+    stock_dir = Path("/usr/lib/tmpfiles.d")
+    shipped = [
+        f for f in ("snapd.conf", "systemd-tmp.conf", "x11.conf") if (stock_dir / f).exists()
+    ]
+    if shipped:
+        for f in shipped:
+            (root / "usr" / "lib" / "tmpfiles.d" / f).write_text((stock_dir / f).read_text())
+        out = cat()
+        assert len(m._tmp_lines(out)) > 1, out  # the stock entries under /tmp are read as lines…
+        assert m._tmp_wipe_lines(out) == [] and m._tmpfiles_plan(out) == "off", (
+            out
+        )  # …and none is a wipe
+        for f in shipped:
+            (root / "usr" / "lib" / "tmpfiles.d" / f).unlink()
+    # a `# /x.conf` comment inside a file is not a header, after a blank line or not: the wipe after it stays credited
+    # to its real file (a header names a tmpfiles.d directory)
+    for body in (f"# /opt/notes.conf\n{TMP_STOCK}\n", f"\n# /opt/notes.conf\n{TMP_STOCK}\n"):
+        zz.write_text(body)
+        assert m._tmp_wipe_lines(cat()) == [(str(zz), TMP_STOCK)], body
+    zz.unlink()
+    # a drop-in whose NAME holds a space still gets its lines credited to it (the header is `# <path>.conf`)
+    spaced = root / "etc" / "tmpfiles.d" / "my tmp.conf"
+    spaced.write_text(f"{TMP_STOCK}\n")
+    assert m._tmp_wipe_lines(cat()) == [(str(spaced), TMP_STOCK)]
+    spaced.unlink()
+    # a non-D type at the stock name does not wipe; a comment naming /tmp is not a line
+    (root / "etc" / "tmpfiles.d" / "tmp.conf").write_text(
+        "# D /tmp was here\nq /tmp 1777 root root 30d\n"
+    )
+    assert m._tmp_boot_wipe_off(cat()) and m._tmpfiles_plan(cat()) == "off"
+    # SYSTEMD_COLORS=1 wraps the headers in escapes and the parser loses the file names; the installer's own call
+    # sets SYSTEMD_COLORS=0 (asserted on the fake's logged env by the write test), and the headers come back
+    (root / "etc" / "tmpfiles.d" / "tmp.conf").write_text(m.TMPFILES_TEXT)
+
+    def cat_env(colors: str) -> str:
+        r = subprocess.run(
+            ["systemd-tmpfiles", "--cat-config", f"--root={root}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={**os.environ, "SYSTEMD_COLORS": colors, "SYSTEMD_URLIFY": "0"},
+        )
+        assert r.returncode == 0, r.stderr
+        return r.stdout
+
+    coloured = cat_env("1")
+    assert "\x1b[" in coloured and [f for f, *_ in m._tmp_lines(coloured)] != [ours], coloured
+    assert [f for f, *_ in m._tmp_lines(cat_env("0"))] == [ours]
 
 
 @pytest.mark.parametrize("verb", ["daemon-reload", "enable", "start"])
