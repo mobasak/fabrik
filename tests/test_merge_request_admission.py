@@ -63,7 +63,7 @@ def _hold(mem: str, release: threading.Event, entered: threading.Event) -> threa
 def test_two_8g_legs_serialize_and_the_wait_moves_the_budget(leases):
     release, entered = threading.Event(), threading.Event()
     first = _hold("8192M", release, entered)
-    threading.Timer(0.6, release.set).start()
+    threading.Timer(1.2, release.set).start()
     ctx = _Ctx("8192M")
     before = ctx.test_deadline
     t0 = time.monotonic()
@@ -73,7 +73,7 @@ def test_two_8g_legs_serialize_and_the_wait_moves_the_budget(leases):
     assert waited >= 0.5, f"the second 8G leg started beside the first ({waited:.2f}s)"
     # the wait is outside the budget clock: the deadline moved by it
     assert ctx.test_deadline - before >= 0.5
-    assert note == "" or "admitted after" in note
+    assert "admitted after a 1s wait" in note, note  # the leg says it waited
     assert list(leases.glob("lease-*.json")) == []  # both leases removed at the leg's end
 
 
@@ -142,7 +142,7 @@ def test_a_forked_child_does_not_keep_the_parents_lease(leases):
         f"s=importlib.util.spec_from_file_location('m',{str(SCRIPT)!r});m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n"
         "class C:\n leg_mem='8192M'; main=pathlib.Path('/x'); test_deadline=0; admit_spent=0.0\n"
         "cm=m._admitted(C()); cm.__enter__()\n"
-        "if os.fork()==0:\n print('child',flush=True); time.sleep(20); os._exit(0)\n"
+        "if os.fork()==0:\n print('child',flush=True); time.sleep(3); os._exit(0)\n"
         "time.sleep(0.3); os._exit(0)\n"
     )
     proc = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
@@ -164,11 +164,17 @@ def test_a_hung_admission_lock_holder_cannot_outlast_the_bound(leases, monkeypat
     fd = os.open(leases / "admission.lock", os.O_RDWR | os.O_CREAT)
     fcntl.flock(fd, fcntl.LOCK_EX)
     try:
-        t0 = time.monotonic()
-        with mr._admitted(_Ctx("8192M")) as note:
-            waited = time.monotonic() - t0
-        assert waited < 2, f"a held admission lock blocked the leg for {waited:.2f}s"
-        assert "its lock was held past" in note
+        out: dict = {}
+
+        def leg() -> None:
+            with mr._admitted(_Ctx("8192M")) as note:
+                out["note"] = note
+
+        t = threading.Thread(target=leg, daemon=True)
+        t.start()
+        t.join(5)  # a blocking flock never returns: fail here instead of hanging the suite
+        assert not t.is_alive(), "a held admission lock blocked the leg past its bound"
+        assert "its lock was held past" in out["note"]
     finally:
         os.close(fd)
 
@@ -238,8 +244,9 @@ def test_an_interrupt_while_taking_the_lease_frees_it(leases, monkeypatch):
 
 def test_the_legs_runner_inherits_the_lease(leases):
     # Opus critique 3: the lease must live as long as the leg's tests, so the runner holds it too
+    before = set(mr._LEASE_FDS)
     with mr._admitted(_Ctx("8192M")):
-        (fd,) = list(mr._LEASE_FDS)
+        (fd,) = set(mr._LEASE_FDS) - before
         run = mr._run(
             [sys.executable, "-c", "import os,sys; os.fstat(int(sys.argv[1]))", str(fd)], 30
         )
