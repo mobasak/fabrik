@@ -1044,7 +1044,7 @@ class TestExportCli:
         assert result.exit_code == 0
         assert "DRY-RUN" in result.output or "dry-run" in result.output
 
-    def test_export_then_import_dry_run_via_cli(self, tmp_path):
+    def test_export_then_import_dry_run_via_cli(self, tmp_path, monkeypatch):
         """End-to-end CLI smoke test on the real fabrik repo.
 
         Notes on the boundary: the CLI's ``export`` resolves ``FABRIK_ROOT``
@@ -1060,7 +1060,13 @@ class TestExportCli:
 
         The ``--skip-remote`` flag suppresses VPS-side ssh pulls, so the
         export needs no network.
+
+        The ``.env`` read is the one host input stubbed: ``FABRIK_ROOT`` is the current hub
+        worktree, and a merge leg's throwaway tree has no ``.env``, so the secrets line this test
+        reads was absent there on both sides (W-a9b3bc15). ``_redact_env_keys`` itself is covered
+        by the library tests above.
         """
+        monkeypatch.setattr(portability, "_redact_env_keys", lambda _p: {"DEMO_KEY": "REDACTED"})
         bundle = tmp_path / "out.tar.gz"
         runner = CliRunner()
         result = runner.invoke(
@@ -1074,7 +1080,9 @@ class TestExportCli:
         result = runner.invoke(cli, ["import", str(bundle)])
         assert result.exit_code == 0, result.output
         assert "DRY RUN" in result.output
-        assert "Re-populate" in result.output or "secrets" in result.output.lower()
+        assert "Re-populate 1 secrets" in result.output and "DEMO_KEY" in result.output, (
+            result.output
+        )
 
     def test_import_missing_bundle_exit_1(self, tmp_path):
         runner = CliRunner()
