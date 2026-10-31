@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A screen signal is measured on idle screens too, not only on busy ones (2026-10-31, W-c814836f)
+
+**What happened:** the coordinator's hand-made builder watch read a pane as busy when any row held `…` or `esc to interrupt`. Captured on 23 live panes, no pane showed `esc to interrupt` at all, and every idle pane showed `…` in its truncated status hint ("new task? /clear to save 669.2k t…"), so the watch read every idle builder as busy and woke for nobody. Its busy list also counted "shells still running", which had hidden an idle builder for 2 h.
+
+**Lesson:** a screen-state rule is graded on captures of BOTH states before it is trusted: what a busy pane shows is half the evidence; the other half is that no idle pane shows it. Anchor the rule to the row that only one state draws (here the spinner row above the input box, against the `· done` turn-end row).
+
 ## Measure a merge driver with real git, never a replica of it (2026-10-31, W-53360407)
 
 **What happened:** the spec's first replay ran the ledger resolver over a single-base replica of each merge and read 67 of 70 builder ledger-only merges cleared (spec § Derivations D1). Re-measured with the driver registered and real `git merge` run, 58 of 67 builder merges cleared: git hands a driver a virtual merge base on a criss-cross history, which the replica never built. The obvious fix for those, `merge.ledger.recursive=binary`, duplicates entries. Separately, a supersede row minted on a branch behind master was refused by the DANGLING-pointer check, because the row it supersedes had landed on master only.

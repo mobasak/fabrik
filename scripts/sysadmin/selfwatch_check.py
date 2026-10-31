@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_selfwatch_check.py | docs/workstation/hooks-index.md | scripts/sysadmin/claude_selfwatch_orient.sh
+# AFTER-EDIT: tests/test_selfwatch_check.py | docs/workstation/hooks-index.md | scripts/sysadmin/claude_selfwatch_orient.sh | docs/reference/tmux-agents.md
 """UserPromptSubmit (USER level — every window, every project) — is this session's self-watch ARMED?
 
 The arm was always an ORDER: `session_orient.py` prints it at SessionStart in the synced repos,
@@ -127,6 +127,73 @@ def _feedback_order(sid: str, cwd: str) -> str:
         "(ONE wake per arm: its wake line names the `/fabrik-command-improve <cmd>` or the mail id "
         "to claim — act on it, then re-arm. Authority: docs/workstation/hooks-index.md.)\n"
     )
+
+
+# W-c814836f — every repo's coordinator watches its builders (D-1396 duty 3): the order to arm the one-wake builder
+# watch, for a window LAUNCHED in a repo's main checkout (D-871: in a multi-window repo the coordinator is the
+# main-checkout agent) whose repo is in coordinator_mode or has a live agents_up builder grid. The launch folder
+# (CLAUDE_PROJECT_DIR), not cwd, because a builder that `cd`s into a main checkout keeps its own launch folder; not
+# `$TMUX_PANE`, because the hub coordinator runs in code-server outside tmux. Gates run cheapest first: a stat walk,
+# the lock probe, the config read, and only then the rotate_session import (0.14 s) and one `tmux list-panes`.
+# Fail direction: any error is one stderr line and no order (a missed arm is re-ordered on the next prompt) — never a
+# lost self-watch order. Cobra (D-253): the cheapest silence is arming the watch and ignoring its wakes; the wake line
+# names the panes and mail, and an unanswered pane still shows as PANE WAITING.
+BUILDER_ARM = f"{HUB_ROOT}/scripts/sysadmin/watch_builders.py"
+_BUILDER_GRID_BUDGET_S = 1.0
+
+
+def _main_checkout(start: str) -> Path | None:
+    """The main checkout `start` is in: walking up, the FIRST `.git` met decides — a directory is a main checkout, a
+    file is a linked worktree (None), and none at all is None."""
+    p = Path(start)
+    for d in (p, *p.parents):
+        g = d / ".git"
+        if g.is_dir():
+            return d
+        if g.exists():
+            return None
+    return None
+
+
+def _builder_order(sid: str, cwd: str) -> str:
+    """The builder-watch arm order for a coordinator window whose builderwatch lock is free; "" otherwise. Never raises."""
+    try:
+        main = _main_checkout((os.environ.get("CLAUDE_PROJECT_DIR") or "").strip() or cwd)
+        if main is None or _armed(sid, "builderwatch"):
+            return ""
+        try:
+            cfg = json.loads(
+                (main / ".fabrik" / "work" / "config.json").read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError):
+            cfg = {}
+        if not (isinstance(cfg, dict) and cfg.get("coordinator_mode") is True):
+            import importlib.util
+
+            here = Path(__file__).resolve().parent / "rotate_session.py"
+            spec = importlib.util.spec_from_file_location("_selfwatch_rotate_session", here)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"cannot load {here}")
+            rs = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(rs)
+            if not rs.builder_panes(str(main), budget=_BUILDER_GRID_BUDGET_S):
+                return ""
+        return (
+            "## ⚠️ BUILDER WATCH NOT ARMED (coordinator window, mechanical check)\n"
+            "You are this repo's coordinator (a window launched in its main checkout, builders in its tmux grid), "
+            "and no process holds this session's `builderwatch.lock`, so a builder that finishes, stalls or asks "
+            "waits unseen until you next look. ARM IT NOW — one background Bash task; once the lock is held this "
+            "notice stops:\n"
+            f'`Bash(run_in_background: true, command: "python3 {BUILDER_ARM} {_safe(sid)} {shlex.quote(str(main))}")`\n'
+            "(ONE wake per arm: its line names each builder pane that went idle or ended a turn and each mail for "
+            "you — read them, act, then re-arm. Authority: docs/reference/tmux-agents.md.)\n"
+        )
+    except Exception as exc:  # noqa: BLE001 — fail-open by contract, but never SILENT (B4)
+        print(
+            f"selfwatch_check: builder watch check skipped — {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return ""
 
 
 # W-456aa02a — a window's hooks, settings and permissions load from CLAUDE_PROJECT_DIR, the folder it was LAUNCHED in,
@@ -324,6 +391,11 @@ def main() -> int:
         order = _feedback_order(sid, cwd)
         if order:
             print(order)
+        # the coordinator's builder watch (W-c814836f): its own gates and its own except, so a tmux failure there
+        # never costs this window the self-watch order below
+        builders = _builder_order(sid, cwd)
+        if builders:
+            print(builders)
         # the tree notice shares only the real-sid and not-headless gates above — not the `/opt` prefix or the watch
         # binary (a project window elsewhere has the same defect) — and never raises, so the self-watch order below
         # still prints (W-456aa02a)

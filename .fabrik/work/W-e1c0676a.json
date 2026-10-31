@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T11:31:34.451832Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-e1c0676a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1402",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after the coordinator grants it or the fabrik-deck lock releases, add one row beside the kaizen feedback-watch row in docs/workstation/hooks-index.md naming _builder_order's gates, the watch_builders.py arm and the builderwatch lock",
+  "note": "done in the same change: the coordinator granted the hooks-index.md edit over the fabrik-deck lock (D-1403), so the row landed with W-c814836f (D-1402)",
+  "owner": "",
+  "priority": 2,
+  "status": "dropped",
+  "title": "hooks-index.md: add the selfwatch_check builder-watch row (W-c814836f, D-1402) — held back because fleet's active plan lock 2026-10-22-plan-1-fabrik-deck owns the file; grant asked by mail 01M68T9567"
+}

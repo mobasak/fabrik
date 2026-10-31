@@ -511,3 +511,109 @@ def test_the_tree_notice_does_not_wait_for_the_self_watch(tmp_path):
     took = time.monotonic() - t0
     assert TREE_NOTICE not in out and "SELF-WATCH NOT ARMED" in out, out
     assert took < _selfwatch._TREE_BUDGET_S + 3 < 10, took
+
+
+# ── the coordinator's builder watch (W-c814836f) ────────────────────────────────────────────────────────────────────
+
+BUILDER_ORDER = "BUILDER WATCH NOT ARMED"
+_FAKE_GRID_TMUX = """#!/usr/bin/env python3
+import os, sys
+if os.environ.get("FAKE_GRID_FAIL"):
+    sys.stderr.write("server exited unexpectedly\\n")
+    sys.exit(1)
+if sys.argv[1] == "list-panes":
+    print(os.environ.get("FAKE_GRID_ROW", ""))
+"""
+
+
+def _coord_repo(
+    tmp_path: Path, name: str = "proj", coordinator_mode: bool = False
+) -> tuple[Path, Path]:
+    """A main checkout (`.git` a directory) and one linked worktree (`.git` a file) under it."""
+    main = tmp_path / name
+    (main / ".git").mkdir(parents=True)
+    (main / ".fabrik" / "work").mkdir(parents=True)
+    cfg = {"distributor": "coord", **({"coordinator_mode": True} if coordinator_mode else {})}
+    (main / ".fabrik" / "work" / "config.json").write_text(json.dumps(cfg))
+    wt = main / ".claude" / "worktrees" / "dev1"
+    wt.mkdir(parents=True)
+    (wt / ".git").write_text(f"gitdir: {main}/.git/worktrees/dev1\n")
+    return main, wt
+
+
+def _grid(tmp_path: Path, row: str = "", fail: bool = False) -> dict[str, str]:
+    exe = tmp_path / "grid-tmux"
+    exe.write_text(_FAKE_GRID_TMUX)
+    exe.chmod(0o755)
+    env = {"ROTATE_TMUX": str(exe), "FAKE_GRID_ROW": row}
+    if fail:
+        env["FAKE_GRID_FAIL"] = "1"
+    return env
+
+
+def test_builder_watch_order_gates(tmp_path):
+    main, wt = _coord_repo(tmp_path)
+    builder = "\t".join(("%3", "proj", "proj", "dev1", str(wt)))
+    # a window launched in the main checkout of a repo with a live builder grid: ordered, with its sid and repo
+    out = _run(tmp_path, cwd=str(main), CLAUDE_PROJECT_DIR=str(main), **_grid(tmp_path, builder))
+    assert BUILDER_ORDER in out, out
+    assert f"watch_builders.py {SID} {main}" in out and "Bash(run_in_background: true" in out, out
+    # the launch folder decides, not cwd: a builder that `cd`s into the main checkout is never ordered …
+    assert BUILDER_ORDER not in _run(
+        tmp_path, cwd=str(main), CLAUDE_PROJECT_DIR=str(wt), **_grid(tmp_path, builder)
+    )
+    # … and a coordinator whose cwd moved below its checkout still is (no CLAUDE_PROJECT_DIR: cwd is the launch)
+    (main / "src").mkdir()
+    assert BUILDER_ORDER in _run(tmp_path, cwd=str(main / "src"), **_grid(tmp_path, builder))
+    # another repo's grid only, and no coordinator_mode: nothing to watch
+    other = "\t".join(("%9", "elsewhere", "", "dev9", "/x/elsewhere"))
+    assert BUILDER_ORDER not in _run(
+        tmp_path, cwd=str(main), CLAUDE_PROJECT_DIR=str(main), **_grid(tmp_path, other)
+    )
+    # coordinator_mode alone is enough (its builders may all be down; the watch still reads its mail)
+    main2, _ = _coord_repo(tmp_path, "proj2", coordinator_mode=True)
+    assert BUILDER_ORDER in _run(
+        tmp_path, cwd=str(main2), CLAUDE_PROJECT_DIR=str(main2), **_grid(tmp_path)
+    )
+    # armed: the watcher's flock on <safe-sid>.builderwatch.lock is held → silent
+    fd = os.open(
+        str(tmp_path / "locks" / f"{SID}.builderwatch.lock"), os.O_WRONLY | os.O_CREAT, 0o644
+    )
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        assert BUILDER_ORDER not in _run(
+            tmp_path, cwd=str(main), CLAUDE_PROJECT_DIR=str(main), **_grid(tmp_path, builder)
+        )
+    finally:
+        os.close(fd)
+
+
+def test_a_failing_builder_check_never_costs_the_self_watch_order(tmp_path):
+    main, _wt = _coord_repo(tmp_path)
+    home = tmp_path / "home"
+    (home / ".claude" / "bin").mkdir(parents=True)
+    (home / ".claude" / "bin" / "claude-selfwatch.sh").write_text("#!/bin/sh\n")
+    e = {**os.environ, "CLAUDE_SOUND_LOCKDIR": str(tmp_path / "locks"), "HOME": str(home)}
+    for k in ("CLAUDE_MESH_HEADLESS", "FABRIK_HEADLESS", "CLAUDE_AGENT"):
+        e.pop(k, None)
+    (tmp_path / "locks").mkdir(exist_ok=True)
+    (tmp_path / "identity.jsonl").write_text("")
+    e.update(
+        AGENT_IDENTITY_FILE=str(tmp_path / "identity.jsonl"),
+        SELFWATCH_OPT_ROOT=str(tmp_path),
+        CLAUDE_PROJECT_DIR=str(main),
+        **_grid(tmp_path, fail=True),
+    )
+    proc = subprocess.run(
+        [sys.executable, str(HOOK)],
+        input=json.dumps(
+            {"session_id": SID, "cwd": str(main), "hook_event_name": "UserPromptSubmit"}
+        ),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=e,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert BUILDER_ORDER not in proc.stdout and "SELF-WATCH NOT ARMED" in proc.stdout, proc.stdout
+    assert "builder watch" in proc.stderr and "RuntimeError" in proc.stderr, proc.stderr
