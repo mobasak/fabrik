@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:26:46.043598Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-1adba441",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "give _move_world a registry the move can re-point (identity toplevel = the fake repo), assert row['registry'] and the file's new sid in test_w_e38f8ee7_execute_move_respawns_and_records, prove red by deleting the re-point (found by the W-1e0f4229 merge review, seat 2 mutant B)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "rotate-session --move tests never assert the session-agents registry re-point: deleting rotate_session.py's _session_registry re-point (the reg_file line in _move) keeps all 6 move tests green, because the fixture's identity toplevel /opt/x is not the repo, so the row reads refused:repo unchecked"
+}

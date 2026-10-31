@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "decide per shape whether this file could plausibly grow it; widen _clock_patches and its probe list only for those, red-first. Pass-4 residue too: false red on a non-module .time attribute (datetime.time, row.time); aliases the fixed point skips (a, b = time, 1; t: object = time; the walrus t := time; x = d['time'])",
+  "next": "decide per shape whether this file could plausibly grow it; widen _clock_patches and its probe list only for those, red-first. Pass-4 residue too: false red on a non-module .time attribute (datetime.time, row.time); aliases the fixed point skips (a, b = time, 1; t: object = time; the walrus t := time; x = d['time']). Merge-review aa1f7c093 adds: monkeypatch.setitem(vars(time) or time.__dict__, 'sleep', f); setattr(rs.hib or subprocess, 'time', fake); importlib.import_module('time') / __import__('time'); sys.modules.get('time'); del time.sleep; a starred setattr(*(rs.time, 'sleep', f))",
   "note": "",
   "owner": "",
   "priority": 3,
