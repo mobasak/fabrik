@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — a merge request from a branch more than 500 commits behind its base is refused, with the merge to run (2026-10-31)
+`scripts/merge_request.py request` now counts the commits on the base's remote tip that the branch lacks, fetching the
+tip once when the clone lacks it, and refuses past 500 before anything is sent, printing `git fetch <remote>
+refs/heads/<base>` then `git merge FETCH_HEAD` (never a rebase; the full ref never picks a same-named tag). A fetch
+failure or timeout refuses too. Both `CLAUDE.md` copies say builders merge the base at every item boundary and before
+every request, graded word for word against the script's limit, and the operating-model doc states the refusal. A branch
+that still runs a copy from before this check is not covered (W-731a7652). W-527c1ce0, D-1381, D-1391.
+
 ### Added — every new agent grid refreshes "All Agents (tabbed).bat" itself; the tmux how-to (2026-10-30)
 `scripts/sysadmin/agents_up.sh` now starts `agents_bat.py --tabbed` in the background after every grid it builds
 (interactive, `--detach` boot sweep, `add` cold start), when a desktop is remembered. Refreshes are coalesced (one runs,
