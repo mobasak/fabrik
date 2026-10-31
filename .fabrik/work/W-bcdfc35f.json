@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:31.291768Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bcdfc35f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5DW48C1N4PF3S9TCN6NAWSH, validate against current master, then fix or drop (proposed score: impact high, effort low — final_gate.py semgrep scans a hard-coded src/ root, so a flat-layout repo's gate reds or skips; fleet-wide gate, a root-detection fix)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mail 01M5DW48C1 (youtube): WHAT: final_gate.py's semgrep leg hardcodes `src/` as its scanning root, so on a flat-layout repo a clean-tree run reds \"Invalid scanning root: src\"."
+}
