@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — a refusal reply quoting an after-merge red no longer outgrows mail.py's 64 KB cap (2026-10-31)
 `scripts/merge_request.py` cuts each red test id shown in an after-merge red item's title to 160 characters (the full
-list stays in `after-merge/status.json`) and cuts a quoted item title to 600 characters in the preflight refusal. One
+list stays in `after-merge/status.json`) and cuts a quoted item title to 1,500 characters and every reason a reply or ack carries to 4,000 in the preflight refusal. One
 ~100 KB parametrize id had made MR 01M690NBSH's reply 102 KB, so mail.py refused it and every resume retried it (W-f4ce5c6b).
 
 ### Added — merge test legs wait for room in the box's test slice instead of all running at once (2026-10-31)

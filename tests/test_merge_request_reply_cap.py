@@ -54,3 +54,20 @@ def test_a_long_red_id_is_cut_in_the_filed_title(monkeypatch, tmp_path):
     assert (
         "chars)" in title and "status.json" in title
     )  # the cut is said, and where the full ids are
+
+
+def test_a_reply_body_stays_under_the_mail_cap_whatever_the_reason():
+    # review sonnet C1-C3: an owner-test red tail or raw git stderr reaches the reason unbounded; the reply
+    # (and its retry line) cut every reason at REASON_SHOWN_CHARS, the record keeps it whole
+    rec = {
+        "id": "01MX",
+        "branch": "b",
+        "outcome": "refused",
+        "reason": "owner tests red: FAILED " + LONG,
+        "retries": [{"reason": "first " + LONG}],
+        "evidence": [],
+    }
+    body = mr._reply_body(rec)
+    assert len(body.encode()) < 64 * 1024 // 4, len(body)
+    assert body.count("the merge record holds it whole") == 2
+    assert len(rec["reason"]) > 100_000  # the record itself is untouched

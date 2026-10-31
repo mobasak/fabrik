@@ -2810,7 +2810,7 @@ def _after_cause_search(ctx: _Ctx, todo: list[dict], ids: list[str], script_env:
 # quoted in every refusal reply, which mail.py caps at 64 KB (W-f4ce5c6b): each id shown is cut to this,
 # the full list stays in after-merge/status.json's "red"
 ID_SHOWN_CHARS = 160
-TITLE_QUOTED_CHARS = 600
+TITLE_QUOTED_CHARS = 1500  # a title filed after the id cut (6 ids x 160 + its text) fits whole
 
 
 def _short_id(nid: str) -> str:
@@ -3062,6 +3062,19 @@ def _recipients(ctx: _Ctx, rec: dict) -> list[str]:
     return out
 
 
+# a reply carries a reason built from test output, git stderr or a quoted item title, any of which can be
+# tens of KB (W-f4ce5c6b: a 100 KB parametrize id); mail.py refuses a body past 64 KB, which strands the
+# record on every resume. Every reason a reply or an ack carries is cut here; the record keeps it whole.
+REASON_SHOWN_CHARS = 4000
+
+
+def _shown_reason(reason: object) -> str:
+    text = str(reason)
+    if len(text) <= REASON_SHOWN_CHARS:
+        return text
+    return f"{text[:REASON_SHOWN_CHARS]}…(+{len(text) - REASON_SHOWN_CHARS} chars; the merge record holds it whole)"
+
+
 def _reply_body(rec: dict) -> str:
     lines = [
         f"request: {rec['id']}",
@@ -3071,7 +3084,7 @@ def _reply_body(rec: dict) -> str:
     retries = rec.get("retries") or []
     if retries:  # a reader holding two replies `re:` one id tells the current one by this line
         lines.append(
-            f"retry: {len(retries)} — supersedes the refused reply ({retries[-1].get('reason', '?')})"
+            f"retry: {len(retries)} — supersedes the refused reply ({_shown_reason(retries[-1].get('reason', '?'))})"
         )
     skipped = rec.get("not_carried", [])
     if rec["outcome"] == "merged":
@@ -3079,7 +3092,7 @@ def _reply_body(rec: dict) -> str:
         if skipped:
             lines.append(f"carry: {len(skipped)} path(s) NOT carried into the main checkout")
     else:
-        lines += [f"reason: {rec.get('reason', '?')}"]
+        lines += [f"reason: {_shown_reason(rec.get('reason', '?'))}"]
     lines += [f"evidence: {e}" for e in rec.get("evidence", [])]
     if skipped:
         lines += ["", "not carried:"] + [f"- WARNING: {w}" for w in skipped]
@@ -3141,7 +3154,12 @@ def _reply_and_ack(ctx: _Ctx, rec: dict) -> None:
         if rec["outcome"] == "merged":
             args = ["--disposition", "done", "--merge-sha", rec["merge_sha"]]
         else:
-            args = ["--disposition", "blocked", "--reason", rec.get("reason", "refused")]
+            args = [
+                "--disposition",
+                "blocked",
+                "--reason",
+                _shown_reason(rec.get("reason", "refused")),
+            ]
         res = _mail_cli(ctx, "ack", rec["id"], "--repo", ctx.mailbox, *args)
         if res.returncode != 0:
             raise MergePartialError(
