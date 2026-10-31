@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:33:43.785312Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-6614b62e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-30-ledger-merge-driver-design.md"
+  },
+  "next": "after W-53360407 lands: probe the virtual base git hands the driver on 29c6d1da4 and design a resolver rule for the two-base residue; ALSO (spec review round 8, recorded): report D3's non-edit refusals beside the tripwire counter. The Counter B pass moved into W-53360407's plan (Phase C step 2).",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Ledger merge driver: clear the two-base (criss-cross) CHANGELOG residue — git's internal merge of the merge bases leaves the driver an 'edits an existing line' refusal on 6 of 67 builder merges (D5, 2026-10-31); merge.ledger.recursive=binary clears them but duplicates entries, so it is NOT the fix"
+}
