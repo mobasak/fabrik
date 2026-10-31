@@ -4687,7 +4687,11 @@ def _five_hour_retired(usage: dict) -> bool:
     if not isinstance(limits, list):
         return False
     kinds = [lim.get("kind") if isinstance(lim, dict) else None for lim in limits]
-    return "weekly_all" in kinds and all(k in _WEEKLY_LIMIT_KINDS for k in kinds)
+    # `isinstance(k, str)` first: a list or dict kind is unhashable and the frozenset test raised
+    # out of both parsers (closing pass, seat A)
+    return "weekly_all" in kinds and all(
+        isinstance(k, str) and k in _WEEKLY_LIMIT_KINDS for k in kinds
+    )
 
 
 _WEEKLY_LIMIT_KINDS: Final = frozenset({"weekly_all", "weekly_scoped"})
@@ -7196,15 +7200,11 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
             " every screen will prompt for login until ONE /login re-pins a chain"
         )
         return
-    utils = {}
-    for key in ("five_hour", "seven_day"):
-        w = row.get(key)
-        u = w.get("utilization") if isinstance(w, dict) else None
-        # through the ONE validator, like _flip_candidate_verdict: `_tick_burn` below was made
-        # non-raising on a giant JSON int and this bare read raised one line later on the same
-        # row — the flip never happened, the posture was never written (round 2 seat A, F1).
-        # A RETIRED 5h window is no reading here either (`_row_utils`, D-1400)
-        utils[key] = None if _is_retired(w) else _usable_ts(u)
+    # through the ONE validator, like _flip_candidate_verdict: `_tick_burn` below was made
+    # non-raising on a giant JSON int and a bare read here raised one line later on the same
+    # row — the flip never happened, the posture was never written (round 2 seat A, F1). The
+    # shared reader also reads a RETIRED 5h window as no reading (D-1400).
+    utils = _row_utils(row)
     present = [u for u in utils.values() if u is not None]
     if not present:
         print(f"tick: active {row['email']} — no quota reading, no flip decision possible")

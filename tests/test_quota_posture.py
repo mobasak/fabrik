@@ -1779,3 +1779,28 @@ def test_a_deeply_nested_transcript_or_record_line_never_raises(tmp_path):
     t = tmp_path / "t.jsonl"
     t.write_text("[" * 30000 + "]" * 30000 + "\n")  # under the 64 KiB tail window
     assert mod._session_model(str(t)) is None
+    # the posture file on every prompt and every tool call, and the hook's own stdin payload
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "quota-posture.json").write_text("[" * 30000 + "]" * 30000)
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state)
+    assert p.returncode == 0 and "posture unavailable (unreadable" in p.stdout, (p.returncode, p.stdout, p.stderr[-300:])
+    env = dict(os.environ, ROTATE_STATE_DIR=str(state))
+    deep = subprocess.run(
+        [sys.executable, str(HOOK)], input="[" * 30000 + "]" * 30000, capture_output=True,
+        text=True, env=env, timeout=30,
+    )
+    assert deep.returncode == 0 and "Traceback" not in deep.stderr, deep.stderr[-300:]
+    # the run-record reader (`_READ_ERRORS`): a deeply nested record reads as no live run
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "s1.json").write_text("[" * 30000 + "]" * 30000)
+    old = os.environ.get("COMMAND_RUN_DIR")
+    os.environ["COMMAND_RUN_DIR"] = str(runs)
+    try:
+        assert mod._has_live_run("s1") is False
+    finally:
+        if old is None:
+            os.environ.pop("COMMAND_RUN_DIR", None)
+        else:
+            os.environ["COMMAND_RUN_DIR"] = old
