@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:43.997140Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c1c87d9e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66SD5BKYKA7YBT2M7PGV1YS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "wef3 (web-ecommerce-factory): the Stop hook's UNREVIEWED SPONTANEOUS WORK cause fires three times per turn on a surface the repo's coordinator ruled review-exempt (local D-614: no reviews on sites/ocoron). The hook has no way to see such a ruling, so every ocoron change spends 3+ turns declining it,"
+}

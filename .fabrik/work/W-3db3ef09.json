@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:08:43.855319Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-3db3ef09",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M694KY5GRJRGXWS8J4HHJE8M",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "rotate infra-3 — at an item boundary after W-a9b3bc15 (merge request 01M694KJBZ sent)"
+}

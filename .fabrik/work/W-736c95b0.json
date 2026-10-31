@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:51.603180Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-736c95b0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68VKCTJ1XZW6A7NVXYHAFB9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the Stop hook's \"UNREVIEWED SPONTANEOUS WORK\" check has no exit for a review the operator explicitly deferred. In web-ecommerce-factory the operator ruled \"no bhdtrade reviews until their edits finish\" (relayed by the coordinator, mail 01M670NA, 2026-10-30), and the merge request carried a def"
+}

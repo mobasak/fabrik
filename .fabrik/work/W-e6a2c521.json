@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:48:11.862405Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-e6a2c521",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M586AZ2ZYMN2493D249ZV846, validate against current master, then fix or drop (proposed score: impact high, effort high — a /clear orphans a running record, so the Stop hook, seat counts and work rungs lose the run; a new adoption mechanism in command_run.py)",
   "note": "",
-  "owner": "",
+  "owner": "infra",
   "priority": 2,
+  "score_reason": "a /clear orphans a running record, so the Stop hook, seat counts and work rungs lose the run; a new adoption mechanism in command_run.py",
   "status": "open",
   "title": "mail 01M586AZ2Z (fabrik): command_run.py: adopt a running record across /clear (same window, agent and cwd), so the Stop hook, seat counts and work-item claims follow the window (/fabrik-task feed"
 }

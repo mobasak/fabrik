@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:49:00.293754Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-03e259ad",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M5Q708PASFTNCSW1700BMRA2, validate against current master, then fix or drop (proposed score: impact high, effort low — the brave-search API key returns 422 since 2026-10-24 while mcp_health shows it CONNECTED; the key renewal is operator-minted, the false CONNECTED is W-de83a7e1)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "the brave-search API key returns 422 since 2026-10-24 while mcp_health shows it CONNECTED; the key renewal is operator-minted, the false CONNECTED is W-de83a7e1",
   "status": "open",
   "title": "mail 01M5Q708PA (fabrik-lib): brave-search MCP key invalid (HTTP 422) while mcp_health.py reports it CONNECTED with no key check"
 }

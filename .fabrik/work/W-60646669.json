@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:46.860991Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-60646669",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68KA2EC8JWVRPF6PKKWQJPX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "seat_guard.py does not unwrap capped_run.sh, so any seat command behind it skips every seat check. kaizen's D-935 seat-brief fix (mail 01M65ZP80Q) is about to tell every seat to use that prefix."
+}

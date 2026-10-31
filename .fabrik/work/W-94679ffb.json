@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:49:26.469602Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-94679ffb",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M5XPXCFHW62HYKWE5PEX8532, validate against current master, then fix or drop (proposed score: impact low, effort low — command_run.py printed no scope-growth verdict at a confirmed round 3 of a scoped review)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "command_run.py printed no scope-growth verdict at a confirmed round 3 of a scoped review",
   "status": "open",
   "title": "mail 01M5XPXCFH (web-ecommerce-factory): WHAT: command_run.py printed no scope-growth verdict at round 3 of a /fabrik-review-scoped run whose window was confirmed 11 → 8 → 6 with --own-fix 0 → 5 → 6 (round 3 ent"
 }

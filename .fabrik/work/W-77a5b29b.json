@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:48:58.150705Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-77a5b29b",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M5PR9KY996GZCS6AHVBYPAD4, validate against current master, then fix or drop (proposed score: impact low, effort low — the feedback rung orders a new item while ROTATE-DUE forbids starting one; a rung ordering fix)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "the feedback rung orders a new item while ROTATE-DUE forbids starting one; a rung ordering fix",
   "status": "open",
   "title": "mail 01M5PR9KY9 (fabrik): Stop hook's feedback rung orders a new item while ROTATE-DUE forbids starting one (three blocks at an item boundary)"
 }

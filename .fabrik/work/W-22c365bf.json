@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:38.460253Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-22c365bf",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66EH67A2R5H730HKMG78TMC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: final_gate_stop.py's UNREVIEWED SPONTANEOUS WORK cause blocks end-of-turn while an operator ruling in the repo bans per-change reviews for that surface."
+}
