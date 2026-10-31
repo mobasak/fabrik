@@ -1,6 +1,6 @@
 # Plan — the ledger merge driver (W-53360407)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** infra-2
 **Spec:** `docs/superpowers/specs/2026-10-30-ledger-merge-driver-design.md` (CONVERGED, D-1386; review receipt `docs/development/reviews/2026-10-30-ledger-merge-driver-spec-review.md`). The spec cites code at `51716046f`. This plan cites it at `b938c583e`, after master was merged in. The resolver functions are byte-identical between the two; only their line numbers moved (§ Evidence E2).

@@ -1,0 +1,20 @@
+{
+  "plan": "docs/development/plans/2026-10-31-plan-1-ledger-merge-driver.md",
+  "owned_paths": [
+    "scripts/merge_request.py",
+    "tests/test_merge_ledger_driver.py",
+    "scripts/install_post_commit_hook.sh",
+    ".gitattributes",
+    "tests/test_workitem_merge_driver.py",
+    "docs/reference/multi-agent-operating-model.md",
+    "docs/workstation/hooks-index.md"
+  ],
+  "branch": "w-53360407-entry-files",
+  "started_at": "2026-10-31T11:55:00-03:00",
+  "status": "active",
+  "baseline_commit": "f65cc54181fb787ca7d77a2bd2ba9502f737d734",
+  "shared_with": {
+    "docs/workstation/hooks-index.md": "held by 2026-10-28-plan-1-dynamic-builders (infra-3); grant for the install_post_commit_hook.sh row requested (mail 01M68JG2CE)"
+  },
+  "tickets": {}
+}
