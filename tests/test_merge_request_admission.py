@@ -300,3 +300,18 @@ def test_each_legs_wait_is_spent_from_one_allowance(leases, monkeypatch):
     finally:
         release.set()
         first.join(5)
+
+
+def test_a_failed_lease_write_releases_the_lease(leases, monkeypatch):
+    # review A-haiku 3 (A-5): an OSError after the lease is created must not keep it while the leg runs
+    real = mr.json.dumps
+
+    def full(*a, **k):
+        monkeypatch.setattr(mr.json, "dumps", real)
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(mr.json, "dumps", full)
+    with mr._admitted(_Ctx("8192M")) as note:
+        assert mr._LEASE_FDS == {}, "the leg ran holding a half-written lease"
+    assert "not checked" in note
+    assert list(leases.glob("lease-*.json")) == []
