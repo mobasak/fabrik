@@ -8,6 +8,7 @@ scripted tmux, a fake /proc tree, a registry, an identity store, a transcript an
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import inspect
 import json
@@ -26,6 +27,25 @@ SCRIPT = REPO / "scripts" / "sysadmin" / "rotate_session.py"
 spec = importlib.util.spec_from_file_location("rotate_session", SCRIPT)
 rs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rs)
+_REAL_SLEEP = time.sleep  # captured before any test patches anything (W-1e0f4229)
+
+
+class _RsTime:
+    """rotate_session's OWN `time` (W-1e0f4229). A fake clock set on the global `time` module also drives
+    subprocess.Popen._wait, which polls a child's exit with time.sleep: every fake-tmux call then moved the fake clock
+    by however long the child took to exit — up to ~1,700 fake s for a 50 ms tail — so a timed test failed under load.
+    Overrides live here; every other name is the real module's."""
+
+    def __getattr__(self, name):
+        return getattr(time, name)
+
+
+def _rs_time(monkeypatch, **overrides) -> None:
+    """Fake `time.<name>` for rotate_session only; repeated calls in one test add to the same proxy."""
+    proxy = rs.time if isinstance(rs.time, _RsTime) else _RsTime()
+    vars(proxy).update(overrides)
+    monkeypatch.setattr(rs, "time", proxy)
+
 
 SID = "11111111-1111-4111-8111-111111111111"
 NEW = "22222222-2222-4222-8222-222222222222"
@@ -174,7 +194,7 @@ def world(tmp_path, monkeypatch):
         monkeypatch.setenv(k, str(v))
     monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (False, "clean, pushed"))
     monkeypatch.setattr(rs.hib, "live_sessions", lambda home, proc, opt="/opt": [])
-    monkeypatch.setattr(rs.time, "sleep", lambda s: None)
+    _rs_time(monkeypatch, sleep=lambda s: None)
     # W-e38f8ee7: a --move reaps the old claude by pid; never let a test signal a real process
     signals: list[tuple[int, int]] = []
     monkeypatch.setattr(rs, "_signal", lambda pid, sig: signals.append((pid, sig)))
@@ -1059,7 +1079,7 @@ def test_w_ee19169d_review_r1_sgr_walk_rule_above_and_the_pre_key_rechecks(world
     assert rs._box(_boxed("❯ a", "  ❯ quoted")) == "a ❯ quoted"
     assert rs._box(f"❯ go on\n{RULE}\n") is None
     sleeps: list[float] = []
-    monkeypatch.setattr(rs.time, "sleep", lambda s: sleeps.append(s))
+    _rs_time(monkeypatch, sleep=lambda s: sleeps.append(s))
     # execute's captures: check 5 (1), the pre-discard read (2), the discard's two reads (3, 4), run_checks again (5)
     for drift, want in ((4, "refused:stale-input"), (5, "refused:screen")):
         Path(str(world["state"]) + ".keys").unlink(missing_ok=True)
@@ -1435,7 +1455,7 @@ def test_t07_the_lock_precedes_the_first_lstat_and_read(tmp_path, monkeypatch):
             waiting.set()
         real_sleep(s)
 
-    monkeypatch.setattr(rs.time, "sleep", sleep)
+    _rs_time(monkeypatch, sleep=sleep)
     out: list[str] = []
     with AS.agents_lock(str(repo)):
         t = threading.Thread(
@@ -1594,8 +1614,11 @@ def _late_bind(world, monkeypatch, bind_after: float | None) -> dict:
     gains the re-bind `bind_after` s after the resume prompt, or never when None. Returns the times seen."""
     monkeypatch.delenv("ROTATE_WAIT_S")
     clock = {"now": time.time()}
-    monkeypatch.setattr(rs.time, "time", lambda: clock["now"])
-    monkeypatch.setattr(rs.time, "sleep", lambda s: clock.__setitem__("now", clock["now"] + s))
+    _rs_time(
+        monkeypatch,
+        time=lambda: clock["now"],
+        sleep=lambda s: clock.__setitem__("now", clock["now"] + s),
+    )
     _clear_hook(world, monkeypatch, bind=False)
     seen: dict = {}
     real_send = rs._send
@@ -1631,6 +1654,134 @@ def test_wb72231b8_a_late_bind_inside_the_grace_rows_ok(world, monkeypatch):
     assert 97 <= row["rebind_s"] <= 99, row
 
 
+def test_w1e0f4229_a_slow_exiting_tmux_never_moves_the_fake_clock(world, monkeypatch, tmp_path):
+    """W-1e0f4229: the late-bind test failed 12 in 16 under load (`typed-unsent:*`, or rebind_s 259 for 98) because its
+    fake clock sat on the GLOBAL time module, where subprocess polls a child's exit with time.sleep. The clock is now
+    rotate_session's own, so a tmux that lingers after closing its pipes costs the fake clock nothing."""
+    clock = {"now": 1000.0}
+    _rs_time(
+        monkeypatch,
+        time=lambda: clock["now"],
+        sleep=lambda s: clock.__setitem__("now", clock["now"] + s),
+    )
+    slow = tmp_path / "slow-tmux"
+    slow.write_text(
+        "#!/usr/bin/env python3\nimport os, time\nos.close(1)\nos.close(2)\ntime.sleep(0.05)\n"
+    )
+    slow.chmod(0o755)
+    monkeypatch.setenv("ROTATE_TMUX", str(slow))
+    for _ in range(3):
+        rs._tmux("capture-pane", "-p", "-t", "%5")
+    assert clock["now"] == 1000.0, clock
+    # the identity half, independent of how subprocess waits: rotate_session's `time` is the proxy, the global
+    # module keeps its real sleep
+    assert rs.time is not time and time.sleep is _REAL_SLEEP
+
+
+def _clock_patches(src: str) -> list[int]:
+    """The lines of `src` that patch the `time` module (W-1e0f4229 review). Read as a syntax tree, so a call ruff
+    wraps is still one call and a comment quoting one is none. The clock is `time`, a name bound to it (`import time
+    as t`, `t = time`), any `<module>.time` attribute (`rs.time`, `rs.hib.time`, `subprocess.time` — each loaded
+    module's `time` IS the global module), `sys.modules["time"]` or a `"time.<name>"` string. Refused: a `setattr`,
+    `patch` or `patch.object` whose target (first argument, `target=` or `obj=`) is the clock, and an assignment to
+    an attribute of it. Out of scope by design: other files, and swapping `rs.time` itself (`setattr(rs, "time", …)`
+    or `rs.time = …`), which is `_rs_time`'s own move."""
+    tree = ast.parse(src)
+    names = {"time"} | {
+        a.asname
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Import)
+        for a in n.names
+        if a.name == "time" and a.asname
+    }
+
+    def clock(node) -> bool:
+        if isinstance(node, ast.Name):
+            return node.id in names
+        if isinstance(node, ast.Attribute):
+            return node.attr == "time"
+        if isinstance(node, ast.Subscript):  # sys.modules["time"], nothing else keyed "time"
+            return (
+                isinstance(node.slice, ast.Constant)
+                and node.slice.value == "time"
+                and isinstance(node.value, ast.Attribute)
+                and node.value.attr == "modules"
+                and isinstance(node.value.value, ast.Name)
+                and node.value.value.id == "sys"
+            )
+        return (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and node.value.startswith("time.")
+        )
+
+    grew = True
+    while grew:  # `t = time`, then `u = t`: a name assigned from the clock is the clock
+        before = len(names)
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Assign) and clock(n.value):
+                names |= {t.id for t in n.targets if isinstance(t, ast.Name)}
+        grew = len(names) > before
+
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            targets = list(node.args[:1]) + [
+                k.value for k in node.keywords if k.arg in ("target", "obj")
+            ]
+            if name in ("setattr", "patch", "object") and any(clock(t) for t in targets):
+                hits.append(node.lineno)
+        elif isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if any(isinstance(t, ast.Attribute) and clock(t.value) for t in targets):
+                hits.append(node.lineno)
+    return sorted(hits)
+
+
+@pytest.mark.parametrize(
+    "line, refused",
+    [
+        ('monkeypatch.setattr(time, "sleep", f)', True),
+        ('monkeypatch.setattr(rs.time, "sleep", f)', True),
+        ('monkeypatch.setattr(\n    time, "sleep", lambda s: None\n)', True),  # ruff-wrapped
+        ('monkeypatch.setattr(target=time, name="sleep", value=f)', True),
+        ('monkeypatch.setattr("time.sleep", f)', True),
+        ('import time as _clock\nmonkeypatch.setattr(_clock, "sleep", f)', True),
+        ('monkeypatch.setattr(sys.modules["time"], "sleep", f)', True),
+        ('mock.patch("time.sleep")', True),
+        ('mock.patch.object(time, "sleep")', True),
+        ("time.sleep = f", True),
+        ("rs.time.sleep = f", True),
+        ('monkeypatch.setattr(rs.hib.time, "sleep", f)', True),  # hibernate's `time` is the global
+        ('monkeypatch.setattr(AS.time, "sleep", f)', True),
+        ('clock_mod = time\nmonkeypatch.setattr(clock_mod, "sleep", f)', True),
+        ('a = time\nb = a\nmonkeypatch.setattr(b, "sleep", f)', True),
+        ('monkeypatch.setattr(rs, "time", proxy)', False),  # _rs_time's own line
+        ("rs.time = proxy", False),  # the same swap, written as an assignment
+        ('monkeypatch.setattr(d["time"], "sleep", f)', False),  # only sys.modules["time"]
+        ('# never monkeypatch.setattr(time, "sleep", f) here', False),
+        ('"""a docstring quoting monkeypatch.setattr(time, "sleep", f)"""', False),
+        ('monkeypatch.setattr(rs, "IDLE_S", 0)', False),
+        ("time.sleep(0.5)", False),
+    ],
+)
+def test_w1e0f4229_the_clock_patch_scan_sees_every_shape(line, refused):
+    """The scan's probe list, both directions (W-1e0f4229 review pass 2: a line regex missed a wrapped call, an alias,
+    a keyword, `sys.modules`, `mock.patch` and a direct assignment, and refused a comment)."""
+    assert bool(_clock_patches(line)) is refused, line
+
+
+def test_w1e0f4229_no_test_patches_the_global_time_module():
+    """W-1e0f4229 review: the drift test above grades `_rs_time` only, so a later test patching `time` around it would
+    bring the drift back with that test green. `_rs_time` is the one patch site this file may hold."""
+    hits = _clock_patches(Path(__file__).read_text(encoding="utf-8"))
+    assert hits == [], (
+        f"patch rotate_session's clock through _rs_time, never the global module: lines {hits}"
+    )
+
+
 def test_wb72231b8_no_bind_waits_the_whole_grace_then_rows_partial(world, monkeypatch):
     """W-b72231b8 slice 2: with no re-bind the row is `partial:rebind`, never a false `ok`, and only after the identity
     store was read for the whole REBIND_GRACE_S."""
@@ -1646,7 +1797,7 @@ def test_wb72231b8_execute_claims_nothing_new_after_the_cutoff(world, monkeypatc
     before it writes its file). A request still waiting once the run has gone CLAIM_CUTOFF_S is left for the path unit's
     next start — never started where the unit's timeout could kill it with no row."""
     mono = {"now": 1000.0}
-    monkeypatch.setattr(rs.time, "monotonic", lambda: mono["now"])
+    _rs_time(monkeypatch, monotonic=lambda: mono["now"])
     rows: list = []
     monkeypatch.setattr(rs, "append_row", lambda row: rows.append(row))
 
@@ -2170,12 +2321,12 @@ def test_w_e38f8ee7_move_refusals_and_partials(world, monkeypatch):
                 world["transcript"], (st.st_atime, st.st_mtime - 5)
             )  # a change, never into the future
 
-    monkeypatch.setattr(rs.time, "sleep", bump)
+    _rs_time(monkeypatch, sleep=bump)
     _write_request(world, repo=str(repo), mode="move", into="dev1-work")
     rs.execute()
     assert _rows(world)[-1]["outcome"] == "refused:idle", _rows(world)[-1]
     assert _respawns(world) == [] and world["signals"] == []
-    monkeypatch.setattr(rs.time, "sleep", lambda s: None)
+    _rs_time(monkeypatch, sleep=lambda s: None)
     # neither case binds the new id, so dev1 stays bound to SID for the next request
     for registers, binds, outcome in (
         (False, False, "partial:launch"),

@@ -3,7 +3,7 @@
   "created": "2026-10-29T14:14:26.410373Z",
   "creator": "infra-3",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ae21773f8337578a28993d7a3f9b036f7150c64b",
   "id": "W-1e0f4229",
   "impact": "high",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "HIGH: flaky test on master slows every merge leg's confirm phase and forced a by-hand landing 2026-10-29; effort low: one test race",
-  "status": "open",
+  "status": "done",
   "title": "Flaky test: test_wb72231b8_a_late_bind_inside_the_grace_rows_ok fails about 1-2 in 8 isolated runs (tests/test_rotate_session.py), on master's code before W-b9ad80ae T07 too"
 }
