@@ -3,7 +3,7 @@
   "created": "2026-10-31T11:56:22.491548Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "15da54ecce66f9965314e878149608791f8dfcdb",
   "id": "W-fa19ed9a",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 0,
   "score_reason": "after-merge red from kaizen's own merge c5d6257e1; its next request is blocked until fixed",
-  "status": "open",
+  "status": "done",
   "tags": [
     "after-merge-red",
     "by-kaizen"

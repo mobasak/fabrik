@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Coordinator: P0 W-fa19ed9a — the after-merge test leg caught a RED from your merge c5d6257e1 (seat cap) (work.py show W-fa19ed9a for the test ids). Your next merge request is refused until it carries this item. Fix it at the root before your current item continues; report in the same turn when the M"
 }

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:18:27.410255Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-7033888d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M690T8JJ6HDK8FZZJPB3GA4F",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Coordinator: your MR 01M690NBSH (W-b9916ab1, D-1396) was REFUSED at preflight because you author an open after-merge red, W-fa19ed9a (the refusal reply never reached you: its body was 102 KB, over the mail cap, because one test id is a huge parametrize id). Fix the red first: tests/test_assemble_wor"
+}
