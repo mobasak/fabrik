@@ -31,7 +31,7 @@ About 60 code lines over 3 code files, executed inline by the orchestrator (`/fa
 | I6 | spec § The delta 4: the readers left unchanged (`check_convergence`, `decisions.py --reserve-id`, the changelog gate) | IN | Phase C step 4 runs the gate and the decisions check over the built tree |
 | I7 | spec § Documentation landing sites (the op-model "always conflict" sentence, the hooks-index row) | IN | Phase B step 3 |
 | I8 | spec Intake I7: `.fabrik/work` same-item conflicts | OUT-OF-SCOPE | W-7a1411b3 |
-| I9 | operator: "implement tonight"; coordinator: "small MRs that land tonight" | IN | Phase C step 6, the merge request |
+| I9 | operator: "implement tonight"; coordinator: "small MRs that land tonight" | IN | Phase C step 5, the merge request |
 | I10 | rollout to project repos ("all repos") | OUT-OF-SCOPE | W-480cdb61. The verb ships fleet-wide with the sync, so the rollout is installer-only |
 
 ## Global Constraints (every phase inherits these)
@@ -58,7 +58,7 @@ Appetite: 40
 1. Add `_merge_ledger(base, ours, theirs, path)` beside `_merge3` (`scripts/merge_request.py:1048`), from `proto/verb.py`:
    - read the three files as bytes through `_decode` (`:778`);
    - run `_merge3`;
-   - for `DECISIONS` (`:545`), refuse when `_dup_ids(result) - _dup_ids(ours)` is non-empty (`_dup_ids`, `:1266`). This is the spec's "a D-id twice that ours did not already hold twice", the same check `_build` applies at landing;
+   - for `DECISIONS` (`:545`), refuse when `_dup_ids(result) - _dup_ids(ours)` is non-empty (`_dup_ids`, `:1266`). This is the spec's "a D-id twice that ours did not already hold twice", the same check `_build` applies at landing. The prototype's `proto/verb.py:9` subtracted theirs's duplicates too; that looser form is NOT carried over, and the Phase A duplicate-id tests exercise the spec's form;
    - write through `tempfile.mkstemp(dir=<dir of ours>, prefix=".merge-ledger-")` and `os.replace`, unlinking the temp on any exception.
 2. Register the subparser beside `sync-runner`'s (`:4184`) and dispatch it before the verb table (`:4213`), as `after-merge-runner` (`:4188`) and `sync-runner` (`:4200`) are, so `main()`'s `try`/`finally` drain never runs after the rename. On any `Exception`, print `merge_request: REFUSED — <reason>` to stderr and return 1; on success return 0.
 3. Add `tests/test_merge_ledger_driver.py` from the prototype, with these changes:
