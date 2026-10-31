@@ -788,9 +788,11 @@ def test_an_exported_merge_records_override_is_scrubbed_before_any_test(tmp_path
     # there would leave this grader exporting a name nothing reads
     select = (REPO / "scripts" / "merge_test_select.py").read_text(encoding="utf-8")
     assert f'os.environ.get("{var}"' in select, var
-    assert f'"{var}"' in (REPO / "scripts" / "merge_request.py").read_text(encoding="utf-8"), var
+    sets = {MERGE_RECORDS_VAR: f'os.environ["{var}"] = ', MERGE_BASE_VAR: f'env["{var}"] = '}[var]
+    assert sets in (REPO / "scripts" / "merge_request.py").read_text(encoding="utf-8"), var
     env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}
-    env[var] = str(tmp_path / "private-records") if var == MERGE_RECORDS_VAR else "4729a071dc"
+    # a full commit id, as the leg exports (a short one fails the selector's id check instead)
+    env[var] = str(tmp_path / "private-records") if var == MERGE_RECORDS_VAR else "f" * 40
     r = subprocess.run(
         [
             sys.executable,

@@ -1107,6 +1107,9 @@ def test_an_until_the_run_cannot_honour_cuts_nothing(tmp_path, monkeypatch, cont
         "PYTHONPATH": str(work),
         "FABRIK_MERGE_TESTS_REC": str(tmp_path / "rec.jsonl"),
         "FABRIK_MERGE_TESTS_UNTIL": str(cut),
+        # inside a leg shard this is the shard's own duration file; the child's fake files must not
+        # append to it (W-aa8c473c review)
+        "FABRIK_MERGE_TESTS_DUR": "",
     }
     r = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
