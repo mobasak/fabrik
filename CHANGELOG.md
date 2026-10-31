@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — master's pre-existing reds, batch 2: three tests coupled to their checkout, date or path (2026-10-31)
+`tests/test_install_pre_push_hook.py` takes the running venv's pre-commit (a merge worktree has no `.venv`), `tests/test_spend_calendar_months.py` seeds inside the 30-day spend window on the 31st, and `tests/test_agents_up.py` matches the foreign name as a word, not a substring of the path (D-1393, W-a9b3bc15).
+
 ### Fixed — master's pre-existing reds, batch 1: an orphaned test removed, seven short D-rows repaired (2026-10-31)
 `tests/test_pipeline_runner.py` imported a module archived in February and failed at collection whenever a run named it; it and its `addopts` ignore in `pyproject.toml` are removed. Seven D-rows written without a why cell gain one, so `tests/test_decisions_table_shape.py` passes (D-1387, W-a9b3bc15).
 
