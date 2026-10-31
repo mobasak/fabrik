@@ -1070,25 +1070,16 @@ def _merge_ledger(base: str, ours: str, theirs: str, path: str) -> None:
     fallback (``git merge-file``) re-merges it into ordinary markers. For DECISIONS it also refuses
     a D-id the result holds more often than ours, once it is held twice — ``_build``'s landing
     check, moved to the first merge that can see the clash. A path that is not one of ``LEDGERS``
-    refuses, and so does a heading or table row (a line opening ``#`` or ``|``) the result holds
-    twice while neither side holds it more than once — a KEY line (an entry's title, an id's
-    row): diff3 keeps lines both sides inserted inside BOTH sides, so an entry cherry-picked onto
-    two branches would otherwise land twice. A line a side already repeats (a ``### Changed``
-    subheading, a table separator) is structure, not a key, and never refuses."""
+    refuses. An entry both sides carry (a cherry-pick onto two branches) lands twice, as it does
+    at landing: the resolver's class, W-f6ede574 — line-count rules here refused shared structure."""
     if path not in LEDGERS:
         raise RefusedError(
             f"{path}: not a ledger this driver merges ({', '.join(sorted(LEDGERS))})"
         )
-    ours_text, theirs_text = _decode(Path(ours).read_bytes()), _decode(Path(theirs).read_bytes())
-    result = _merge3(path, ours_text, _decode(Path(base).read_bytes()), theirs_text)
-    seen = [collections.Counter(t.splitlines()) for t in (result, ours_text, theirs_text)]
-    twice = sorted(
-        ln
-        for ln, n in seen[0].items()
-        if ln[:1] in "#|" and ln and n > 1 >= max(seen[1][ln], seen[2][ln])
+    ours_text = _decode(Path(ours).read_bytes())
+    result = _merge3(
+        path, ours_text, _decode(Path(base).read_bytes()), _decode(Path(theirs).read_bytes())
     )
-    if twice:
-        raise RefusedError(f"{path}: {twice[0]!r} would appear twice — a row both sides carry")
     if path == DECISIONS:
         held = collections.Counter(_D_ROW_RE.findall(ours_text))
         clash = {

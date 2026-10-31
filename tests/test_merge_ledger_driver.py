@@ -19,11 +19,13 @@ SCRIPT = HUB / "scripts" / "merge_request.py"
 FALLBACK = "git merge-file --marker-size %L -L ours -L base -L theirs %A %O %B"
 # the string scripts/install_post_commit_hook.sh registers (tree-relative, run at the worktree top),
 # read from the installer so the end-to-end tests below run exactly what it installs
-LEDGER_DRIVER = re.search(
+_INSTALLED = re.search(
     r"^LEDGER_DRIVER='([^']+)'$",
-    (HUB / "scripts" / "install_post_commit_hook.sh").read_text(),
+    (HUB / "scripts" / "install_post_commit_hook.sh").read_text(encoding="utf-8"),
     re.M,
-).group(1)  # type: ignore[union-attr]
+)
+assert _INSTALLED, "scripts/install_post_commit_hook.sh has no single-quoted LEDGER_DRIVER= line"
+LEDGER_DRIVER = _INSTALLED.group(1)
 CHANGELOG = "# Changelog\n\n## [Unreleased]\n\n### Fixed — old (2026-10-01)\nold\n"
 DECISIONS = "| id | what |\n|---|---|\n| D-1389 | x |\n"
 ATTRS = "/CHANGELOG.md merge=ledger\n/docs/DECISIONS.md merge=ledger\n"
@@ -327,15 +329,6 @@ def _cl_with(*names: str) -> str:
     return CHANGELOG.replace("## [Unreleased]\n", f"## [Unreleased]\n\n{entries}", 1)
 
 
-def test_an_entry_both_sides_carry_refuses_rather_than_land_twice(tmp_path: Path) -> None:
-    # a hotfix cherry-picked onto both branches: diff3 keeps the shared lines inside BOTH sides
-    ours, theirs = _cl_with("hotfix", "o"), _cl_with("hotfix", "t")
-    res, a = _run_verb(tmp_path, CHANGELOG, ours, theirs, "CHANGELOG.md")
-    assert res.returncode == 1, a.read_text()
-    assert "### Fixed — hotfix (2026-10-31)" in res.stderr
-    assert a.read_text() == ours
-
-
 def test_a_third_copy_of_an_id_ours_holds_twice_refuses(tmp_path: Path) -> None:
     base = "| D-5 | a |\n| D-5 | b |\n"
     ours = base + "| D-6 | o |\n"
@@ -385,3 +378,14 @@ def test_a_subheading_or_separator_a_side_already_repeats_merges_clean(tmp_path:
     assert res.returncode == 0, res.stderr
     out = a.read_text()
     assert out.count("#### Changed") == 4 and "— o (" in out and "— t (" in out
+
+
+def test_two_new_tables_sharing_only_a_separator_merge_clean(tmp_path: Path) -> None:
+    # a separator row is structure even the first time both sides bring one
+    ours, theirs = (
+        "# H\n| a | b |\n|---|---|\n| 1 | 2 |\n",
+        "# H\n| c | d |\n|---|---|\n| 3 | 4 |\n",
+    )
+    res, a = _run_verb(tmp_path, "# H\n", ours, theirs, "CHANGELOG.md")
+    assert res.returncode == 0, res.stderr
+    assert a.read_text().count("|---|---|") == 2
