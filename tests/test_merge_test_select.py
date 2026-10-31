@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -1256,6 +1257,68 @@ def test_a_run_without_until_drops_an_inherited_cut(tmp_path, monkeypatch):
     assert len(json.dumps(big)) > 128 * 1024
     rc, _reds, tail = _cut_run(runner, ["tests/test_wide.py"], big)
     assert rc == 0 and "2501 passed, 99 deselected" in tail, tail
+
+
+# The selector's own inputs: the leg sets them for this process, and a child that inherited one
+# moved a nested selector run's base or record directory (W-aa8c473c, W-f13496d8). Each child runs
+# from tmp_path, so the hub's tests/conftest.py — which pops two of them — is not on its path.
+_SELECTOR_INPUTS = {
+    "FABRIK_MERGE_TESTS_BASE": "a" * 40,
+    "FABRIK_MERGE_TESTS_RECORDS": "/nonexistent/records",
+    "FABRIK_MERGE_SHARDS": "2",
+}
+_ENV_PROBE = (
+    "import json, os\n\n"
+    "SEEN = sorted(k for k in os.environ if k.startswith('FABRIK_MERGE'))\n"
+    "open(os.environ['CUT_MARK'], 'a').write(json.dumps(SEEN) + '\\n')\n\n\n"
+    "def test_env():\n    pass\n"
+)
+
+
+def _seen_by_child(tmp_path, monkeypatch, launch) -> list[str]:
+    runner = _cut_runner(tmp_path, monkeypatch, {"tests/test_env.py": _ENV_PROBE})
+    monkeypatch.setenv("FABRIK_MERGE_CHECK", "1")
+    for name, value in _SELECTOR_INPUTS.items():
+        monkeypatch.setenv(name, value)
+    launch(runner)
+    return json.loads((tmp_path / "mark.txt").read_text().splitlines()[-1])
+
+
+@pytest.mark.parametrize("name", sorted(_SELECTOR_INPUTS))
+def test_a_shard_never_inherits_the_selectors_own_inputs(tmp_path, monkeypatch, name):
+    seen = _seen_by_child(tmp_path, monkeypatch, lambda r: r.run(["tests/test_env.py"]))
+    assert name not in seen, seen
+    assert "FABRIK_MERGE_CHECK" in seen, seen  # the shards' live_box skip still reads it
+
+
+@pytest.mark.parametrize("name", sorted(_SELECTOR_INPUTS))
+def test_a_collect_run_never_inherits_the_selectors_own_inputs(tmp_path, monkeypatch, name):
+    def collect(_runner):
+        assert mts._collect("tests/test_env.py") == ["tests/test_env.py::test_env"]
+
+    seen = _seen_by_child(tmp_path, monkeypatch, collect)
+    assert name not in seen, seen
+    assert "FABRIK_MERGE_CHECK" in seen, seen
+
+
+# A name every child must still read: the per-shard plugin's inputs, which _Runner.start sets for
+# each shard, and FABRIK_MERGE_CHECK (tests/conftest.py's live_box skip). Add a name here only when
+# a CHILD reads it; a name only the selector process reads belongs in mts.SELECTOR_ONLY.
+_CHILD_READS = {
+    "FABRIK_MERGE_TESTS_REC",
+    "FABRIK_MERGE_TESTS_DUR",
+    "FABRIK_MERGE_TESTS_UNTIL",
+    "FABRIK_MERGE_CHECK",
+}
+
+
+def test_every_merge_env_name_the_selector_names_is_classified():
+    """The drop-list fails open for a selector input added later; this pins every name instead."""
+    named = set(re.findall(r"FABRIK_MERGE_[A-Z_]*[A-Z]", SCRIPT.read_text(encoding="utf-8")))
+    selector_only = set(getattr(mts, "SELECTOR_ONLY", ()))
+    assert selector_only == set(_SELECTOR_INPUTS), selector_only
+    assert not selector_only & _CHILD_READS
+    assert named - selector_only - _CHILD_READS == set(), named
 
 
 # ── W-c832e59f: shards balanced by recorded per-file duration ──────────────────────────────

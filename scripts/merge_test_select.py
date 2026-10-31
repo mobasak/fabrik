@@ -76,6 +76,17 @@ MIN_STEM = 6
 TREE_GRADER = "ls-files"
 # pytest's own exits that still mean "the tests ran": 0 green, 1 failures, 5 nothing collected
 RAN = (0, 1, 5)
+# this process's own inputs, set by the leg for the selector alone: a pytest child that inherited one
+# moved a nested selector run's base or record directory (W-aa8c473c, W-f13496d8), so no child gets
+# them. A drop-list fails open for a name added later; the test pins every FABRIK_MERGE_ name here
+SELECTOR_ONLY = ("FABRIK_MERGE_TESTS_BASE", "FABRIK_MERGE_TESTS_RECORDS", "FABRIK_MERGE_SHARDS")
+
+
+def _child_env() -> dict[str, str]:
+    """The environment every pytest child starts from: this one without ``SELECTOR_ONLY``."""
+    return {k: v for k, v in os.environ.items() if k not in SELECTOR_ONLY}
+
+
 # pytest's per-run temp root, under whatever TMPDIR the leg inherits: the one part of a crash line that
 # differs between two runs of one failure (measured on master's reds: raw lines equal 7 of 16,
 # with this replaced 16 of 16; a looser mkdtemp rule merged two different failures, so none)
@@ -475,6 +486,7 @@ def _collect(path: str) -> list[str] | None:
             text=True,
             errors="replace",
             timeout=COLLECT_TIMEOUT_S,
+            env=_child_env(),
         )
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
@@ -655,7 +667,7 @@ class _Runner:
         self.dur_files.append(dur)
         path = os.pathsep.join(p for p in (os.environ.get("PYTHONPATH", ""), str(self.dir)) if p)
         env = {
-            **os.environ,
+            **_child_env(),
             "PYTHONPATH": path,
             "FABRIK_MERGE_TESTS_REC": str(rec),
             "FABRIK_MERGE_TESTS_DUR": str(dur),
