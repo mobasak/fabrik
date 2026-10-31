@@ -65,6 +65,7 @@ copy and the ``--item`` release, none of which ran.
 from __future__ import annotations
 
 import argparse
+import collections
 import contextlib
 import fcntl
 import hashlib
@@ -1067,14 +1068,32 @@ def _merge_ledger(base: str, ours: str, theirs: str, path: str) -> None:
     Resolves the three files with ``_merge3`` and writes the result over ``ours`` atomically; any
     refusal or error leaves ``ours`` untouched and no temp file behind, so the installer's ``||``
     fallback (``git merge-file``) re-merges it into ordinary markers. For DECISIONS it also refuses
-    a D-id the result holds twice that ours did not already hold twice — ``_build``'s landing
-    check, moved to the first merge that can see the clash."""
-    ours_text = _decode(Path(ours).read_bytes())
-    result = _merge3(
-        path, ours_text, _decode(Path(base).read_bytes()), _decode(Path(theirs).read_bytes())
+    a D-id the result holds more often than ours, once it is held twice — ``_build``'s landing
+    check, moved to the first merge that can see the clash. A path that is not one of ``LEDGERS``
+    refuses, and so does a heading or table row (a line opening ``#`` or ``|``) the result holds
+    more often than either side: diff3 keeps lines both sides inserted inside BOTH sides, so an
+    entry cherry-picked onto two branches would otherwise land twice."""
+    if path not in LEDGERS:
+        raise RefusedError(
+            f"{path}: not a ledger this driver merges ({', '.join(sorted(LEDGERS))})"
+        )
+    ours_text, theirs_text = _decode(Path(ours).read_bytes()), _decode(Path(theirs).read_bytes())
+    result = _merge3(path, ours_text, _decode(Path(base).read_bytes()), theirs_text)
+    seen = [collections.Counter(t.splitlines()) for t in (result, ours_text, theirs_text)]
+    twice = sorted(
+        ln
+        for ln, n in seen[0].items()
+        if ln[:1] in "#|" and ln and n > max(seen[1][ln], seen[2][ln])
     )
+    if twice:
+        raise RefusedError(f"{path}: {twice[0]!r} would appear more often than on either side")
     if path == DECISIONS:
-        clash = _dup_ids(result) - _dup_ids(ours_text)
+        held = collections.Counter(_D_ROW_RE.findall(ours_text))
+        clash = {
+            n
+            for n, c in collections.Counter(_D_ROW_RE.findall(result)).items()
+            if c > max(1, held[n])
+        }
         if clash:
             ids = ", ".join(f"D-{n}" for n in sorted(clash, key=int))
             raise RefusedError(f"{ids} would appear twice in {DECISIONS} — re-mint one side")

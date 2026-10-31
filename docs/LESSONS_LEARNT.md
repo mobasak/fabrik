@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Measure a merge driver with real git, never a replica of it (2026-10-31, W-53360407)
+
+**What happened:** the spec's first replay ran the ledger resolver over a single-base replica of each merge and read 397 of 400 cleared. Re-measured with the driver registered and real `git merge` run, 58 of 67 builder merges cleared: git hands a driver a virtual merge base on a criss-cross history, which the replica never built. The obvious fix for those, `merge.ledger.recursive=binary`, duplicates entries. Separately, a supersede row minted on a branch behind master was refused by the DANGLING-pointer check, because the row it supersedes had landed on master only.
+
+**Lesson:** a figure about a git mechanism is taken from that mechanism run end to end (`git merge` in a clone with the attribute and driver set), never from a model of its inputs; and merge master before minting a row that points at a row master just gained.
+
 ## A mechanism and the command that triggers it can each pass review while the pair never fires (2026-10-30, W-6e656dac T06)
 
 **What happened:** T06 built the T-3 hard hold, armed only for a mark with a deadline, and passed its own gates. The `/hibernate` command text, owned by an earlier ticket, still ran `mark` with no `--deadline`. So the hold the plan exists for would never have armed in real use. Neither per-ticket review saw it, because each looked at one half. The whole-plan review's Fable seat found it from the other side ("a no-deadline pause never arms"), and following that seam led to the command text. The same review found the T-3 arm failing open on a dead */5 tick, and seven launchers proceeding on a corrupt marker that `woke` and `status` refused. Three passes: 15 → 2 → 0 confirmed.

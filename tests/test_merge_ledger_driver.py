@@ -314,3 +314,52 @@ def test_the_cli_exits_1_with_a_reason_on_any_error(tmp_path: Path) -> None:
     )
     assert res.returncode == 1
     assert "REFUSED" in res.stderr
+
+
+def _cl_with(*names: str) -> str:
+    entries = "".join(f"### Fixed — {n} (2026-10-31)\n{n}\n\n" for n in names)
+    return CHANGELOG.replace("## [Unreleased]\n", f"## [Unreleased]\n\n{entries}", 1)
+
+
+def test_an_entry_both_sides_carry_refuses_rather_than_land_twice(tmp_path: Path) -> None:
+    # a hotfix cherry-picked onto both branches: diff3 keeps the shared lines inside BOTH sides
+    ours, theirs = _cl_with("hotfix", "o"), _cl_with("hotfix", "t")
+    res, a = _run_verb(tmp_path, CHANGELOG, ours, theirs, "CHANGELOG.md")
+    assert res.returncode == 1, a.read_text()
+    assert "### Fixed — hotfix (2026-10-31)" in res.stderr
+    assert a.read_text() == ours
+
+
+def test_a_third_copy_of_an_id_ours_holds_twice_refuses(tmp_path: Path) -> None:
+    base = "| D-5 | a |\n| D-5 | b |\n"
+    ours = base + "| D-6 | o |\n"
+    res, a = _run_verb(tmp_path, base, ours, base + "| D-5 | t |\n", "docs/DECISIONS.md")
+    assert res.returncode == 1, a.read_text()
+    assert "D-5" in res.stderr
+    assert a.read_text() == ours
+
+
+def test_a_path_that_is_not_a_ledger_refuses(tmp_path: Path) -> None:
+    res, a = _run_verb(tmp_path, "x\n", "x\no\n", "x\nt\n", "src/app.py")
+    assert res.returncode == 1
+    assert "src/app.py" in res.stderr
+    assert a.read_text() == "x\no\n"
+
+
+def test_non_utf8_bytes_survive_a_clean_resolution(tmp_path: Path) -> None:
+    raw = b"\xff\xfe old bytes\n"
+    o, a, b = tmp_path / "o", tmp_path / "a", tmp_path / "b"
+    o.write_bytes(CHANGELOG.encode() + raw)
+    a.write_bytes(_cl_with("o").encode() + raw)
+    b.write_bytes(_cl_with("t").encode() + raw)
+    res = subprocess.run(
+        [sys.executable, str(SCRIPT), "merge-ledger", str(o), str(a), str(b), "CHANGELOG.md"],
+        capture_output=True,
+    )
+    assert res.returncode == 0, res.stderr
+    out = a.read_bytes()
+    assert (
+        out.endswith(raw)
+        and b"### Fixed \xe2\x80\x94 o" in out
+        and b"### Fixed \xe2\x80\x94 t" in out
+    )

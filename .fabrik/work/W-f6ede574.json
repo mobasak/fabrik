@@ -16,5 +16,5 @@
   "owner": "",
   "priority": 3,
   "status": "open",
-  "title": "Ledger resolver hardening (pre-existing, shared by _build and the merge-ledger driver): _D_ROW_RE misses spacing/zero-pad/bold variants of a D-row; CRLF ledgers never auto-resolve (rstrip('\\n') leaves \\r); a literal ======= line forces markers; add/add DECISIONS gives a misleading 'duplicate id' refusal; :1990's duplicate rule differs from :1203's"
+  "title": "Ledger resolver hardening (pre-existing, shared by _build and the merge-ledger driver): _D_ROW_RE misses spacing/zero-pad/bold variants of a D-row; CRLF ledgers never auto-resolve (rstrip('\\n') leaves \\r); a literal ======= line forces markers; add/add DECISIONS gives a misleading 'duplicate id' refusal; :1990's duplicate rule differs from :1203's; the landing checks (_build, :1990) compare duplicate-id SETS, so a third copy of an id already held twice lands (the driver counts since the plan-1 Phase C review); _resolve_insertions keeps an entry both sides carry twice (the driver refuses it; the owner path still lands it)"
 }
