@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T09:01:50.997008Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-a4282b99",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68JTYCBSJJ89Y5FNR8C15AD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "rotate infra-3 — W-df2e24ed done, MR 01M68JTEMKFBPEKXZKCRVYSYYC sent"
+}

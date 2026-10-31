@@ -23,7 +23,7 @@
   ],
   "branch": "infra-3-dynamic-builders",
   "started_at": "2026-10-28T21:37:00+03:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "8a981474a49a49f4734ab1ffe9d967703bd09826",
   "baseline_gate": {
     "tier": "final_gate.py --lean --check --json",
@@ -33,5 +33,8 @@
   "shared_with": {
     "docs/workstation/hooks-index.md": "2026-10-22-plan-1-fabrik-deck (fleet): the agent_role.py row only, cleared by the lock owner (D-1309)"
   },
-  "tickets": {}
+  "tickets": {},
+  "released_at": "2026-10-31T11:52:15+03:00",
+  "released_by": "coordinator",
+  "released_why": "plan merged as ca53c906f; builder infra-3 confirmed closed (W-89474fc1 done, W-b9ad80ae merged); W-9be33657"
 }

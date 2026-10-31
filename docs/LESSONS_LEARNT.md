@@ -8252,3 +8252,22 @@ when the edit runs.
 `command_rules.losses()` plus `tests/test_command_rules.py` there. Every LOSS is either reworded around a ban span
 that survives, or re-cut under one named D-row. A D-row cite in command text also adds a ceiling READ
 (`commands/_size_ceiling.json` `added:`).
+
+## Committing from a script into a shared checkout: let git move the index and the ref together (2026-10-30, W-5568be8d)
+
+**What happened:** the first design for the kaizen collector's self-commit used the CLAUDE.md private-index recipe
+(read-tree, hash-object, commit-tree, a CAS `update-ref`, then `git reset -- <paths>` to realign the shared index).
+Both critique seats executed it in a scratch repo: when any peer holds `index.lock` at the realign (a plain
+`git status` takes it), the reset fails, the shared index keeps the OLD blob under the NEW HEAD, and the owner's next
+ordinary `git commit` silently reverts the generator's commit; the generator's own index==HEAD guard then blocks
+every later run, so nothing heals it.
+**Why:** the recipe is safe for an agent who checks each step by hand; an unattended script cannot recover from a
+failure between moving the ref and moving the index.
+**How to apply:** an unattended writer commits with `git commit --only -- <paths>` (a pathspec commit implies
+`--only`), which updates the index entry and the branch ref under one `index.lock` and lands nothing on failure; it
+judges eligibility (the file was clean at HEAD before its write) against HEAD at commit time, and names, rather than
+prevents, a write landing in the milliseconds before the commit.
+
+## A script that installs an EXIT trap owns the only one — compose, never add a second (2026-10-31, W-df2e24ed)
+
+bash keeps ONE EXIT trap: a flag-scoped `trap … EXIT` set at parse time is silently replaced by any function's own trap and removed by its `trap - EXIT`, exactly on the failure paths it was meant to report (agents_up.sh start_grid :1055/:1108). Make one handler and let callers flip state variables. And `script -qfec` as a fake pty is not free: with stdin at EOF it forwards ^D into the attached pane and pins the client at 80x24 — both critique seats executed it before any code existed.

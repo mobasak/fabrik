@@ -31,6 +31,8 @@ invisible to the launcher generator.
 
 - `bash /opt/fabrik/scripts/sysadmin/agents_up.sh /opt/<repo>` starts (or attaches) the grid.
 - `bash /opt/fabrik/scripts/sysadmin/agents_up.sh --window <n> /opt/<repo>` attaches window `agents-<n>`.
+- `--tab` before either form is the desktop launcher's: with no terminal it exits 1 (4 when a builder got no pane) with
+  the reason instead of detaching, so the Windows Terminal tab stays open and readable (W-df2e24ed).
 - `bash /opt/fabrik/scripts/sysadmin/agents_up.sh add <repo> <name>` spawns a builder.
 
 Each of them keeps the desktop's `All Agents (tabbed).bat` current by itself (D-1376):

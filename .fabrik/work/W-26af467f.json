@@ -1,0 +1,26 @@
+{
+  "block_digest": "f03635aef29a471ba8e4ae13717b8db94f56c81128a0ce9503b9f1614eb3a0b9",
+  "blocked_by": [],
+  "created": "2026-10-31T08:15:13.621712Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-26af467f",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "f14f1169018062ac936647916bf52887af6e96f6a5da4080b417afd26b9cadfa"
+  ],
+  "next": "",
+  "note": "operator 2026-10-31: 'if so continue perfect merging plan and finish it asap' — A, relaunch and continue",
+  "owner": "",
+  "priority": 2,
+  "question": "Both items are fixed and verified — may I now relaunch the hub agent grids and continue the merge program?",
+  "status": "done",
+  "title": "Both items are fixed and verified — may I now relaunch the hub agent grids and continue the merge program?"
+}

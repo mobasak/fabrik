@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T08:52:19.956359Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-3f44b3a3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68JG2CE2AGKSMY46S1B52SD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: W-53360407 (P0, tonight's merge driver) needs a shared-path grant on docs/workstation/hooks-index.md, which the active plan-lock .fabrik/plan-locks/2026-10-28-plan-1-dynamic-builders.json (infra-3, W-b9ad80ae) owns."
+}
