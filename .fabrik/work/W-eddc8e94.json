@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T11:00:31.501944Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-eddc8e94",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1401",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "route every number the hook reads through one guarded float conversion (catch OverflowError, ValueError) and grade it with a 10**400 posture field per reader",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "hook-never-raises"
+  ],
+  "title": "quota_posture_hook.py raises OverflowError (exit 1, traceback, every prompt and tool call) on a ~400-digit JSON int in quota-posture.json — math.isfinite() in _load_posture's ts check, _pct, _util and _forecast._finite has no guard; pre-existing, found by the W-992979e1 review pass 3 (seat B, executed for ts, utilization, minutes_to_wall, minutes_to_reset)"
+}
