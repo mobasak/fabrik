@@ -15,7 +15,7 @@
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
 | **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | - | ✅ Current |
 
-### Active Development (27 projects)
+### Active Development (28 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -25,6 +25,7 @@
 | **compliance-ops** | Async compliance service platform for HealthTech startups. | Node.js | 🔨 Development | - | ✅ Current |
 | **exam-coach** | AI-powered exam preparation and coaching assistant. | Node.js | 🔨 Development | - | ✅ Current |
 | **fabrik-claim-validator** | Multi-tradition claim validation + substance discovery service. Sibling to fabrik-citation-veri... | FastAPI | 🔨 Development | - | ✅ Current |
+| **fabrik-test-saas-skeleton** | proof-run dummy for saas-skeleton | Node.js | 🔨 Development | - | ✅ Current |
 | **gmail-account-creator** | Automated Gmail account creation and management worker. | Python | 🔨 Development | - | ✅ Current |
 | **job-agent** | LinkedIn Easy Apply Assistant — Chrome MV3 extension (WXT + Preact) with a FastAPI backend | FastAPI | 🔨 Development | https://job-agent.vps1.ocoron.com | ✅ Current |
 | **longephedia-vault** | Structured ontology + RAG over Longephedia constitution (12 themes, discipline rules, protocols... | FastAPI | 🔨 Development | - | ✅ Current |
@@ -47,7 +48,7 @@
 | **web-ecommerce-factory** | AI web-agency control plane: multi-tenant chat SaaS (login to chat to agent scoped to a custome... | Python | 🔨 Development | - | ✅ Current |
 | **whatsapp-agent** | WhatsApp channel agent for the tryton-crm bridge: FastAPI middleware (M2M to the CRM hub) + sel... | FastAPI | 🔨 Development | - | ✅ Current |
 
-### Planning/Research (18 projects)
+### Planning/Research (17 projects)
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
@@ -57,8 +58,6 @@
 | **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | https://email-reader.vps1.ocoron.com | ✅ Current |
 | **emailgateway** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **fabrik-dr-store** | Plain mirror of `/opt/fabrik/.env` from the dev WSL machine. | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **fabrik-lib-account** | Reference implementations of reusable modules at `/opt/fabrik-lib/`. Projects **vendor** (copy)... | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
-| **fabrik-lib-review** | Reference implementations of reusable modules at `/opt/fabrik-lib/`. Projects **vendor** (copy)... | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **foo** | <!-- 2–3 sentences: what this project does, who it's for, what problem it solves. --> | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **image-generation** | Complete product photography system with platform-specific requirements and DIY setup guidance. | Python | 🔨 Development | - | ✅ Current |
 | **iterative_image_editor** | AI-powered product photography tool for automated background removal and scene placement. | Python | 🔨 Development | https://iterative-image-editor.vps1.ocoron.com | ✅ Current |
@@ -68,6 +67,7 @@
 | **scratch_bhd** | **Created:** 2026-07-26 · **Status:** pre-build (spec/content next) · **Deploy:** later, when r... | Node.js | 🔨 Development | - | ⚠️ No project.yaml |
 | **test-results** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **test-saas-for-epic-wf** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
+| **tmp** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **web-scraper** | Scrapy + Playwright web scraper extracting content for AI training pipelines. | Flask | 🔨 Development | - | ✅ Current |
 
 ### Shell Projects (3 projects)
