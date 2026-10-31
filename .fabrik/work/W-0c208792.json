@@ -15,7 +15,7 @@
   },
   "next": "read the D-row; add the override write + check to the installer; doc; /fabrik-review-scoped; MR",
   "note": "",
-  "owner": "infra-3",
+  "owner": "builder-tmpfix",
   "priority": 0,
   "score_reason": "operator: never see this again on a restart; infra-3 owns fabrik_deck.py and install_mesh.sh",
   "status": "open",

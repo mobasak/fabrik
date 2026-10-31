@@ -257,6 +257,8 @@ class QuotaGovernor:
         utils: list[float] = []
         for key in ("five_hour", "seven_day"):
             w = row.get(key)
+            if isinstance(w, dict) and w.get("retired") is True:
+                continue  # a retired 5h window's 0.0 is a stand-in, never headroom (D-1400)
             if isinstance(w, dict) and isinstance(w.get("utilization"), (int, float)):
                 utils.append(float(w["utilization"]))
         mw = row.get("model_windows")
