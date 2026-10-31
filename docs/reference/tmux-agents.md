@@ -10,7 +10,7 @@ unseen by an idle builder in another repo: an idle builder reads no mail.
 - **Find the panes.** `tmux list-panes -a -F '#{session_name} #{pane_id} #{@agent} #{pane_current_path}'`. The
   `@agent` tag is the builder's name.
 - **Check it is idle.** `tmux capture-pane -p -t <pane>`, and read the last lines. Busy shows a spinner row above the
-  input box (`✽ Reticulating… (3m 33s · …)`); idle shows a `· done <time>` row instead, even when it adds `N shells
+  input box (`✽ Reticulating… (3m 33s · …)`), or `✻ Waiting for N background agents` while its seats run; idle shows a `· done <time>` row instead, even when it adds `N shells
   still running` (a builder at an empty prompt with leftover shells is idle). A `…` alone means nothing: the idle
   status hint is truncated with one. Check this after EVERY assignment: after it, the owner's pane must be busy.
 - **Type the task in.** An idle builder does NOT read fabrik-mail: the mail hook fires only on a prompt, and
@@ -32,21 +32,26 @@ Every coordinator keeps a builder watch armed (D-1396 duty 3, W-c814836f). A win
 checkout, in a repo that is in `coordinator_mode` or has a live builder grid, gets this order on every prompt until the
 watch holds its lock:
 
-`Bash(run_in_background: true, command: "python3 /opt/fabrik/scripts/sysadmin/watch_builders.py <sid> <repo>")`
+`Bash(run_in_background: true, command: "python3 /opt/fabrik/scripts/sysadmin/watch_builders.py <sid> <main checkout path>")`
 
-- **What wakes you.** The watch looks every 30 s, and it ends with ONE line when any of these happens:
+- **What wakes you.** The watch looks every 30 s, and it ends when any of these happens:
   - a builder pane that was busy is not busy any more (a finished turn, or a dialog waiting for an answer);
   - a pane shows a turn end it did not show at the last look (a turn that ended, however short);
+  - a builder pane it saw is gone from the grid (a crash, a dead tmux server, or a pane you removed);
   - mail for you landed in the repo's inbox, or was re-routed to you. Mail for you is addressed to your role (the work
     config's `distributor`), to `coordinator`, or to nobody, and is not your own.
-- **Read the line, then act.** It reads `BUILDER WAKE: IDLE: <agent> (<pane>) · MAIL: <id> from <repo>/<agent> ·
-  <kind>`. For each pane, read it (`tmux capture-pane -p -t <pane>`) and answer, assign or rotate; for each mail, claim
-  it. Then re-arm: the line ends with the exact command.
+- **Read the two lines, then act.** The first names every hit: `BUILDER WAKE: IDLE: <agent> (<pane>) · GONE: <agent>
+  (<pane>) · MAIL: <id> from <repo>/<agent> · <kind>`. For each pane, read it (`tmux capture-pane -p -t <pane>`) and
+  answer, assign or rotate; for each mail, claim it. The second line carries the exact re-arm command.
 - **Nothing is lost between arms.** What the watch last saw is saved beside its lock, so a builder that finishes
   while you handle a wake is named by the next arm. The first arm of a session, with no saved state, only takes a
   baseline.
-- **It also exits when** its lock file vanished (a `/tmp` wipe) or tmux failed three looks running (`BUILDER WATCH
-  BLIND: …`). Both lines say to re-arm. A second arm while one runs exits at once ("already armed").
+- **It also exits when** its lock file vanished (a `/tmp` wipe), tmux failed three looks running (`BUILDER WATCH
+  BLIND: …`) or anything else failed (`BUILDER WATCH FAILED: …`). Each says to re-arm. A second arm while one runs
+  exits at once ("already armed").
+- **When the order cannot be given.** A repo path holding characters the order's quoted command cannot carry, or an
+  unwritable lock folder or file, prints `BUILDER WATCH CANNOT ARM` with the reason instead of an order that would
+  fail and come back on every prompt.
 
 ## New grids and windows
 

@@ -29,6 +29,7 @@ import errno
 import fcntl
 import json
 import os
+import re
 import shlex
 import stat
 import subprocess
@@ -139,13 +140,18 @@ def _feedback_order(sid: str, cwd: str) -> str:
 # lost self-watch order. Cobra (D-253): the cheapest silence is arming the watch and ignoring its wakes; the wake line
 # names the panes and mail, and an unanswered pane still shows as PANE WAITING.
 BUILDER_ARM = f"{HUB_ROOT}/scripts/sysadmin/watch_builders.py"
+# the characters the order carries unquoted inside its double-quoted `command: "…"` (review B-1)
+_ORDER_SAFE_PATH = re.compile(r"[A-Za-z0-9_./+@%=:,-]+")
 _BUILDER_GRID_BUDGET_S = 1.0
 
 
 def _main_checkout(start: str) -> Path | None:
     """The main checkout `start` is in: walking up, the FIRST `.git` met decides — a directory is a main checkout, a
     file is a linked worktree (None), and none at all is None."""
-    p = Path(start)
+    # resolved: a symlinked launch folder names the real checkout, as the watcher resolves it (review B-2)
+    p = Path(start).resolve()
+    if not p.is_dir():
+        return None  # a removed worktree must not climb to the main checkout's `.git` (review Bh-1)
     for d in (p, *p.parents):
         g = d / ".git"
         if g.is_dir():
@@ -155,19 +161,33 @@ def _main_checkout(start: str) -> Path | None:
     return None
 
 
+def _read_config(path: Path) -> dict:
+    """The work config as a dict; {} when it is absent, unreadable, not a regular file or not a JSON object. One
+    non-blocking, no-follow open decides the type: a FIFO there must never hang a hook every prompt runs (review Bh-2,
+    the `_armed` rule)."""
+    try:
+        fd = os.open(str(path), os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    except OSError:
+        return {}
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return {}
+        data = json.loads(os.read(fd, 1 << 20).decode("utf-8", "replace"))
+    except (OSError, ValueError):
+        return {}
+    finally:
+        os.close(fd)
+    return data if isinstance(data, dict) else {}
+
+
 def _builder_order(sid: str, cwd: str) -> str:
     """The builder-watch arm order for a coordinator window whose builderwatch lock is free; "" otherwise. Never raises."""
     try:
         main = _main_checkout((os.environ.get("CLAUDE_PROJECT_DIR") or "").strip() or cwd)
         if main is None or _armed(sid, "builderwatch"):
             return ""
-        try:
-            cfg = json.loads(
-                (main / ".fabrik" / "work" / "config.json").read_text(encoding="utf-8")
-            )
-        except (OSError, ValueError):
-            cfg = {}
-        if not (isinstance(cfg, dict) and cfg.get("coordinator_mode") is True):
+        cfg = _read_config(main / ".fabrik" / "work" / "config.json")
+        if cfg.get("coordinator_mode") is not True:
             import importlib.util
 
             here = Path(__file__).resolve().parent / "rotate_session.py"
@@ -178,6 +198,25 @@ def _builder_order(sid: str, cwd: str) -> str:
             spec.loader.exec_module(rs)
             if not rs.builder_panes(str(main), budget=_BUILDER_GRID_BUDGET_S):
                 return ""
+        # an order the shell would mangle, or one whose watcher dies at once on its lock, would come back on every
+        # prompt for ever — say what is wrong instead (the self-watch's own B5 rule)
+        why = ""
+        if not _ORDER_SAFE_PATH.fullmatch(str(main)):
+            why = f"the repo path `{main!s}` holds characters the order's double-quoted command cannot carry"
+        else:
+            locks = _lock_dir()
+            lock = locks / f"{_safe(sid)}.builderwatch.lock"
+            if locks.exists() and not os.access(locks, os.W_OK):
+                why = f"the lock DIR `{locks}` is not writable"
+            elif lock.is_symlink() or (lock.exists() and not lock.is_file()):
+                why = f"the lock FILE `{lock}` is not a regular file"
+            elif lock.exists() and not os.access(lock, os.W_OK):
+                why = f"the lock FILE `{lock}` is not writable"
+        if why:
+            return (
+                "## ⚠️ BUILDER WATCH CANNOT ARM (coordinator window)\n"
+                f"{why}, so an arm order would never stop this notice. Fix it, then the order returns.\n"
+            )
         return (
             "## ⚠️ BUILDER WATCH NOT ARMED (coordinator window, mechanical check)\n"
             "You are this repo's coordinator (a window launched in its main checkout, builders in its tmux grid), "

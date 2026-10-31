@@ -1062,8 +1062,13 @@ def builder_panes(repo: str, exclude: str = "", budget: float = 1.0) -> dict[str
 # every idle pane's status hint is truncated with one. Seat rows (`◯ <name>  …`) and a monitor count are read only in
 # the footer below the input box, so a transcript that quotes one never pins a pane busy. Fail direction: a spinner
 # shape nobody drew yet reads IDLE — a false wake, never a pane hidden as busy.
-_SPIN_ROW = re.compile(r"^\s*[^\s●⎿❯│─]\s+[^\s…()][^…()]{0,40}…(?:\s*\(|\s*$)")
-_WAIT_ROW = re.compile(r"Waiting for \d+ background")
+# the spinner glyph is one of Claude Code's own frames (measured: · ✢ ✳ ✶ ✻ ✽, and `*`), never any glyph: a notice
+# truncated with `…` (`✘ Auto-update fail…`, `⚠ Context low · Run /compact…`) or a reply bullet (`- Checking files…`)
+# alone on a row would otherwise hide an idle builder as busy (review C-1/C-2)
+_SPIN_ROW = re.compile(r"^\s*[·✢✳✶✻✽*]\s+[^\s…()][^…()]{0,40}…(?:\s*\(|\s*$)")
+_WAIT_ROW = re.compile(
+    r"^\s*[·✢✳✶✻✽*]\s+Waiting for \d+ background"
+)  # a spinner row, never quoted text (review Ch-5)
 _SEAT_ROW = re.compile(r"^\s*◯\s+\S+\s{2,}")
 _MONITORS = re.compile(r"\b\d+ monitors?\b")
 

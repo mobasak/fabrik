@@ -41,6 +41,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 BLIND_LOOKS = 3  # failed pane scans in a row before the watch says it is blind
+LOCK_TRIES = (
+    5  # 5 × 50 ms: a shared-lock probe lasts microseconds, a standing watch holds the lock for good
+)
 LOOK_BUDGET_S = (
     20.0  # one look's tmux calls share it: a listing plus ~20 captures at ~5 ms each, far inside
 )
@@ -148,12 +151,15 @@ def main(argv: list[str]) -> int:
         print("usage: watch_builders.py <session_id> <repo>")
         return 2
     sid, main_dir = argv[0], Path(argv[1]).resolve()
+    parent = (
+        os.getppid()
+    )  # read BEFORE prctl: a parent that died first is caught by the check below
     _pdeathsig()
-    parent = os.getppid()
+    if os.getppid() != parent:
+        return 0  # orphaned before the death signal was armed: nobody reads a wake
     safe = _safe(sid)
     locks = Path(os.environ.get("CLAUDE_SOUND_LOCKDIR") or f"/tmp/claude-sound-locks-{os.getuid()}")
     lock_path = locks / f"{safe}.builderwatch.lock"
-    state_path = locks / f"{safe}.builderwatch.state.json"
     rearm = (
         f'Bash(run_in_background: true, command: "python3 {Path(__file__).resolve()} {safe} '
         f'{shlex.quote(str(main_dir))}")'
@@ -164,13 +170,34 @@ def main(argv: list[str]) -> int:
     except OSError as exc:
         print(f"builder-watch NOT armed: cannot open {lock_path}: {exc}")
         return 1
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
+    # a few short retries: the per-prompt check probes this lock with a transient SHARED lock, and a first take that
+    # lands inside that probe must not read as "already armed" (review Bh-4); a real standing watch holds it throughout
+    for attempt in range(LOCK_TRIES):
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except BlockingIOError:
+            if attempt < LOCK_TRIES - 1:
+                time.sleep(0.05)
+    else:
         print(
             f"builder-watch already armed for {safe} — this duplicate exits; the standing watch stays"
         )
         return 0
+    try:
+        return _watch(
+            fd, lock_path, locks / f"{safe}.builderwatch.state.json", main_dir, parent, safe, rearm
+        )
+    except Exception as exc:  # noqa: BLE001 — every exit prints its line: a traceback alone tells the coordinator nothing
+        print(
+            f"BUILDER WATCH FAILED: {type(exc).__name__}: {exc} — this watch EXITS; re-arm it: {rearm}"
+        )
+        return 1
+
+
+def _watch(
+    fd: int, lock_path: Path, state_path: Path, main_dir: Path, parent: int, safe: str, rearm: str
+) -> int:
     rs = _rotate_session()
     role = _role(main_dir)
     mailbox = main_dir.name
@@ -193,14 +220,19 @@ def main(argv: list[str]) -> int:
                 f"builder-watch for {safe}: its lock file vanished — this watch EXITS; re-arm it: {rearm}"
             )
             return 0
+        old_panes = prev["panes"] if prev is not None else {}
         try:
             deadline = time.monotonic() + LOOK_BUDGET_S
             panes = rs._builder_panes(deadline, str(main_dir), "")
             now: dict[str, dict] = {}
             for pane, agent in panes.items():
-                # no -e: a dim cell is still text here; bytes decoded with replacement; None = the pane closed
+                # no -e: a dim cell is still text here; bytes decoded with replacement
                 screen = rs._grid_tmux(deadline, "capture-pane", "-p", "-t", pane)
                 if screen is None:
+                    # closed between the listing and the capture: keep what was last seen, so the next look —
+                    # which no longer lists it — names it GONE
+                    if isinstance(old_panes.get(pane), dict):
+                        now[pane] = old_panes[pane]
                     continue
                 busy, turn = rs.pane_state(screen)
                 now[pane] = {"agent": agent, "busy": busy, "turn_id": turn}
@@ -221,11 +253,16 @@ def main(argv: list[str]) -> int:
             continue
         hits: list[str] = []
         for pane, cur in now.items():
-            old = prev["panes"].get(pane)
+            old = old_panes.get(pane)
             if not isinstance(old, dict) or cur["busy"]:
                 continue  # a pane first seen is recorded; a busy pane has nothing to report
             if old.get("busy") or (cur["turn_id"] and cur["turn_id"] != old.get("turn_id")):
                 hits.append(f"IDLE: {cur['agent']} ({pane})")
+        # a pane the last look saw and this listing lacks: a crash, a dead tmux server, or a removal — said, never
+        # silent (a removal the coordinator made itself costs one wake)
+        for pane, old in sorted(old_panes.items()):
+            if pane not in now and isinstance(old, dict):
+                hits.append(f"GONE: {old.get('agent', '?')} ({pane})")
         for name, mtime in sorted(mail.items()):
             if prev["mail"].get(name) == mtime:
                 continue
@@ -234,14 +271,17 @@ def main(argv: list[str]) -> int:
                 hits.append(
                     f"MAIL: {name[:-3]} from {head.get('from', '?')}/{head.get('from-agent') or '?'} · {head.get('kind', '?')}"
                 )
-        _save(state_path, state)
-        prev = state
         if hits:
             print("BUILDER WAKE: " + " · ".join(hits))
             print(
                 f"This wake ENDED the watch (one wake per arm) — read those panes or that mail, then re-arm it: {rearm}"
             )
+            # printed BEFORE the state is saved: a kill between the two repeats this wake on the next arm, never
+            # loses it (review D-5)
+            _save(state_path, state)
             return 0
+        _save(state_path, state)
+        prev = state
 
 
 if __name__ == "__main__":

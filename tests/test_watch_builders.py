@@ -115,6 +115,17 @@ def test_pane_state_reads_live_screens():
     assert rs.pane_state(IDLE_SEAT_TEXT_ABOVE) == (False, "✻ Baked for 9s · done 2:01 PM")
     assert rs.pane_state(IDLE_TYPED) == (False, "✻ Baked for 9s · done 2:01 PM")
     # a dialog: no box, no spinner, no turn end — not busy, so a busy→dialog edge wakes the coordinator
+    # a notice or a reply bullet truncated with `…` is not a spinner — only the spinner's own glyphs are (review C-1/C-2)
+    for row in ("      ✘ Auto-update fail…", "  ✔ Update installed · Restart to…", "  ⚠ Context low · Run /compact…",
+                "  - Checking files…", "  • Reading the log…"):
+        screen = _screen(["✻ Worked for 20s · done 1:59 PM", row])
+        assert rs.pane_state(screen) == (False, "✻ Worked for 20s · done 1:59 PM"), row
+    # the waiting-for row counts only as a spinner row, never as text quoted in a reply (review Ch-5)
+    quoted = _screen(["✻ Baked for 9s · done 2:01 PM", "● It said: Waiting for 2 background agents to finish"])
+    assert rs.pane_state(quoted) == (False, "✻ Baked for 9s · done 2:01 PM")
+    # every spinner frame measured on live panes reads busy
+    for glyph in "·✢✳✶✻✽*":
+        assert rs.pane_state(_screen([f"{glyph} Pondering… (4s · ↓ 12 tokens)"]))[0] is True, glyph
     assert rs.pane_state(DIALOG) == (False, "")
     assert rs.pane_state("") == (False, "")
 
@@ -352,3 +363,47 @@ def test_lock_and_blind_exits(tmux, tmp_path):
     tmux(rc=1, err="server exited unexpectedly")
     rc, out, _ = _finish(_start(tmp_path, main))
     assert rc == 0 and "BLIND" in out and "re-arm" in out, out
+
+
+def test_a_vanished_pane_or_grid_wakes(tmux, tmp_path):
+    """A builder pane that disappears (a crash, a dead tmux server) is a wake, never silence — review A-1."""
+    main = _repo(tmp_path)
+    tmux(panes=PANES, screens={"%1": BUSY, "%2": IDLE_SHELLS})
+    t0 = time.time()
+    proc = _start(tmp_path, main)
+    try:
+        _wait_for(lambda: _ticked(tmp_path, t0), "the baseline tick")
+        tmux(panes=PANES[1:], screens={"%2": IDLE_SHELLS})  # %1 is gone from the grid
+        rc, out, _ = _finish(proc)
+    finally:
+        proc.kill()
+    assert rc == 0 and "GONE: dev1 (%1)" in out and "dev2" not in out.splitlines()[0], out
+    # the whole tmux server gone: every pane it saw is named
+    tmux(panes=PANES, screens={"%1": BUSY, "%2": BUSY})
+    _state(tmp_path).unlink()
+    t1 = time.time()
+    proc = _start(tmp_path, main)
+    try:
+        _wait_for(lambda: _ticked(tmp_path, t1), "the baseline tick")
+        tmux(rc=1, err="no server running on /tmp/tmux-1000/default")
+        rc, out, _ = _finish(proc)
+    finally:
+        proc.kill()
+    assert rc == 0 and "GONE: dev1 (%1)" in out and "GONE: dev2 (%2)" in out, out
+
+
+def test_any_failure_after_the_lock_still_prints_a_rearm_line(tmux, tmp_path):
+    """Every exit prints its line: an exception after the lock is taken is a FAILED line with the re-arm order, never
+    a bare traceback the coordinator reads as nothing — review A-2."""
+    main = _repo(tmp_path)
+    tmux(panes=PANES, screens={"%1": BUSY, "%2": BUSY})
+    env = {**_env(tmp_path), "BUILDER_WATCH_POLL": "abc"}
+    proc = subprocess.run(
+        [sys.executable, str(WATCH), SID, str(main)],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
+    assert proc.returncode == 1, proc
+    assert "BUILDER WATCH FAILED" in proc.stdout and "re-arm" in proc.stdout, proc.stdout

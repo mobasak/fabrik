@@ -617,3 +617,45 @@ def test_a_failing_builder_check_never_costs_the_self_watch_order(tmp_path):
     assert proc.returncode == 0, proc.stderr
     assert BUILDER_ORDER not in proc.stdout and "SELF-WATCH NOT ARMED" in proc.stdout, proc.stdout
     assert "builder watch" in proc.stderr and "RuntimeError" in proc.stderr, proc.stderr
+
+
+def test_the_builder_order_never_prints_a_command_it_cannot_carry(tmp_path):
+    """Review B-1, B-2, B-3: a launch folder the shell would mangle, a symlinked launch folder and an unwritable lock
+    directory each get the right answer — never an order that breaks or loops."""
+    # B-1: a repo path with a double quote or `$` cannot ride inside the order's double-quoted command
+    bad, _ = _coord_repo(tmp_path, 'pro"j$x', coordinator_mode=True)
+    out = _run(tmp_path, cwd=str(bad), CLAUDE_PROJECT_DIR=str(bad), **_grid(tmp_path))
+    assert BUILDER_ORDER not in out and "BUILDER WATCH CANNOT ARM" in out and "path" in out, out
+    # B-2: a launch folder reached through a symlink names the REAL checkout, as the watcher does
+    real, _ = _coord_repo(tmp_path, "realrepo", coordinator_mode=True)
+    link = tmp_path / "linkrepo"
+    link.symlink_to(real)
+    out = _run(tmp_path, cwd=str(link), CLAUDE_PROJECT_DIR=str(link), **_grid(tmp_path))
+    assert BUILDER_ORDER in out and f"watch_builders.py {SID} {real}" in out, out
+    # B-3: an unwritable lock directory: the watcher would die at once, so the order would loop — say what is wrong
+    locks = tmp_path / "locks"
+    locks.mkdir(exist_ok=True)
+    locks.chmod(0o555)
+    try:
+        out = _run(tmp_path, cwd=str(real), CLAUDE_PROJECT_DIR=str(real), **_grid(tmp_path))
+    finally:
+        locks.chmod(0o755)
+    assert (
+        BUILDER_ORDER not in out and "BUILDER WATCH CANNOT ARM" in out and "not writable" in out
+    ), out
+
+
+def test_a_gone_launch_folder_or_a_fifo_config_never_misorders_or_hangs(tmp_path):
+    """Review Bh-1: a launch folder that no longer exists (a removed worktree) must not climb to the main checkout's
+    `.git` and order a builder to arm; Bh-2: a `config.json` that is a FIFO must not hang the hook."""
+    main, _wt = _coord_repo(tmp_path, coordinator_mode=True)
+    gone = main / ".claude" / "worktrees" / "removed-dev"
+    out = _run(tmp_path, cwd=str(main), CLAUDE_PROJECT_DIR=str(gone), **_grid(tmp_path))
+    assert BUILDER_ORDER not in out, out
+    cfg = main / ".fabrik" / "work" / "config.json"
+    cfg.unlink()
+    os.mkfifo(cfg)
+    t0 = time.monotonic()
+    out = _run(tmp_path, cwd=str(main), CLAUDE_PROJECT_DIR=str(main), **_grid(tmp_path))
+    assert time.monotonic() - t0 < 8, "a FIFO config must never hang the prompt hook"
+    assert BUILDER_ORDER not in out, out  # no config read and no grid: nothing to watch

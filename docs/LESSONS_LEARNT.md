@@ -3,7 +3,7 @@
 
 ## A screen signal is measured on idle screens too, not only on busy ones (2026-10-31, W-c814836f)
 
-**What happened:** the coordinator's hand-made builder watch read a pane as busy when any row held `…` or `esc to interrupt`. Captured on 23 live panes, no pane showed `esc to interrupt` at all, and every idle pane showed `…` in its truncated status hint ("new task? /clear to save 669.2k t…"), so the watch read every idle builder as busy and woke for nobody. Its busy list also counted "shells still running", which had hidden an idle builder for 2 h.
+**What happened:** the coordinator's hand-made builder watch read a pane as busy when any row held `…` or `esc to interrupt`. Captured on 23 live panes, no pane showed `esc to interrupt` at all, and 13 of the 16 idle panes showed `…` in their truncated status hint ("new task? /clear to save 669.2k t…"), so the watch read nearly every idle builder as busy and woke for nobody. Its busy list also counted "shells still running", which had hidden an idle builder for 2 h.
 
 **Lesson:** a screen-state rule is graded on captures of BOTH states before it is trusted: what a busy pane shows is half the evidence; the other half is that no idle pane shows it. Anchor the rule to the row that only one state draws (here the spinner row above the input box, against the `· done` turn-end row).
 
