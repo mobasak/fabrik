@@ -83,7 +83,11 @@ def test_evidence_and_warning_lines_are_cut_and_the_whole_body_is_bounded():
         "base": "master",
         "evidence": ["sync: " + LONG] + [f"tests: {'x' * 3000}" for _ in range(40)],
         "not_carried": [LONG],
+        "item": "W-0000feed",
     }
     body = mr._reply_body(rec)
-    assert len(body.encode()) <= mr.REPLY_BODY_MAX_BYTES + 200, len(body.encode())
-    assert "the merge record holds" in body
+    # the lines a reader acts on survive the cut (closing pass NEW-3)
+    assert "item: W-0000feed" in body and "work.py done W-0000feed" in body
+    assert len(body.encode()) < 50 * 1024, len(body.encode())  # a literal: mail.py's cap is 64 KB
+    assert "; the merge record holds it whole)" in body  # each long line is cut on its own
+    assert "evidence cut at the reply's size cap" in body  # and the sum is bounded

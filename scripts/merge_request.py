@@ -3094,9 +3094,10 @@ def _reply_body(rec: dict) -> str:
             lines.append(f"carry: {len(skipped)} path(s) NOT carried into the main checkout")
     else:
         lines += [f"reason: {_shown_reason(rec.get('reason', '?'))}"]
-    lines += [f"evidence: {_shown_reason(e)}" for e in rec.get("evidence", [])]
+    middle = [f"evidence: {_shown_reason(e)}" for e in rec.get("evidence", [])]
     if skipped:
-        lines += ["", "not carried:"] + [f"- WARNING: {_shown_reason(w)}" for w in skipped]
+        middle += ["", "not carried:"] + [f"- WARNING: {_shown_reason(w)}" for w in skipped]
+    head, lines = lines, []
     item = rec.get("item") or "none"
     lines += ["", f"item: {item}"]
     if rec["outcome"] == "merged" and item != "none":
@@ -3112,12 +3113,15 @@ def _reply_body(rec: dict) -> str:
             "runs merge_request.py retry on this request. When it names the owner-test budget of "
             "the run, change nothing and send nothing either: the owner runs merge_request.py retry."
         )
-    body = "\n".join(lines) + "\n"
-    if (
-        len(body.encode()) > REPLY_BODY_MAX_BYTES
-    ):  # many capped lines can still add up (review NEW-2)
-        cut = body.encode()[:REPLY_BODY_MAX_BYTES].decode("utf-8", "ignore")
-        body = cut + "\n…(reply cut at its size cap; the merge record holds every line)\n"
+    top, tail = "\n".join(head) + "\n", "\n".join(lines) + "\n"
+    mid = "\n".join(middle) + "\n" if middle else ""
+    room = REPLY_BODY_MAX_BYTES - len(top.encode()) - len(tail.encode())
+    if len(mid.encode()) > room:
+        # many capped lines can still add up: only the middle is cut, so the item, coordinator and
+        # HOW lines a reader acts on always arrive (review NEW-2, NEW-3)
+        mid = mid.encode()[: max(0, room - 120)].decode("utf-8", "ignore")
+        mid += "\n…(evidence cut at the reply's size cap; the merge record holds every line)\n"
+    body = top + mid + tail
     return body.replace("acked-by:", "acked by:")  # a body never carries a verbatim ack line
 
 
