@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T12:00:54.174372Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0217f4d7",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: does claude re-read ~/.claude-fleet/active credentials per request or only at start? then either make the flip restart affected panes via agents_up.sh, or make the tick message each pane",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "three of six builders froze on the old account today; account rotation is infra's beat; infra-2 after the janitor",
+  "status": "open",
+  "title": "Account flip leaves running builders on the OLD account's token: at 2026-10-31 ~14:30 the pointer moved sarp→mob, but fleet, infra and infra-3 (launched on active=sarp) kept sarp's credentials and froze on 'Weekly limit reached · Retrying in 5h (Nov 5)' — sarp's weekly reset — until the coordinator relaunched them by hand; the tick readings were STALE (12 h) so the flip reason was invisible. The relief flip must reach live sessions (or the pane must be told to restart), and the rotation tick's stale readings must be refreshed or flagged before a flip is trusted"
+}
