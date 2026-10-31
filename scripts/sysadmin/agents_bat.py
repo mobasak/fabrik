@@ -10,8 +10,8 @@ stderr line and the rest are still listed (exit 0). The boot sweep (claude-reboo
 which decides the builders itself — the probe is left out because at boot the user bus may not answer yet.
 
 --tabbed (W-b9ad80ae D5): one named Windows Terminal window (`wt.exe -M -w fabrik-agents`, so a later run can append to
-it) with, per repo, a tab running `agents_up.sh /opt/<repo>` (attach-or-launch) and one tab per overflow window n >= 2,
-running `agents_up.sh --window <n> /opt/<repo>`: the live tmux windows named `agents-<n>` of the repo's session UNION
+it) with, per repo, a tab running `agents_up.sh --tab /opt/<repo>` (attach-or-launch) and one tab per overflow window
+n >= 2, running `agents_up.sh --tab --window <n> /opt/<repo>`: the live tmux windows named `agents-<n>` of the repo's session UNION
 the windows its `--print` pane count implies at four panes a window (W-8209a305), so a down session, or a failed or
 timed-out (2 s) read, still gets the tabs its grid will build; any other window name is ignored; the session is named
 from the repo's physical path, as agents_up.sh does. agents_up.sh runs it after every grid it builds (D-1376). In BOTH modes the distro defaults to the Deck's resolver
@@ -35,9 +35,14 @@ writes a WT JSON fragment (%LOCALAPPDATA%\\Microsoft\\Windows Terminal\\Fragment
 profile "<Repo> Agents grid" (its own name: a hand-made "<Repo> Agents" may still be in settings.json) at font size 9 — written to a temp file by one redirect-first block, then moved into place, so
 WT never reads half of it. settings.json is never written by us; WT itself adds a `"source": "Fabrik"` stub there for a
 fragment profile. Then `start "" wt.exe -M -w new new-tab -p ... wsl.exe --distribution <distro> --exec bash -l
-<agents_up.sh> /opt/<repo>` — wt.exe takes everything from wsl.exe on as the tab's command line, so each word there
+<agents_up.sh> --tab /opt/<repo>` — wt.exe takes everything from wsl.exe on as the tab's command line, so each word there
 is a plain token (no space, quote or `;`, which wt would split on) that wt passes through unchanged, and the command
 is explicit, so the grid opens even before WT has loaded the fragment (at the default font then).
+
+Every tab runs `agents_up.sh --tab` and the profile sets `"closeOnExit": "never"` (W-df2e24ed): a tab whose command
+fails — wsl.exe failing before WSL starts (a vsock accept timeout), or agents_up finding no terminal to attach — stays
+open with its reason instead of closing or going black. Its cost: a clean tmux detach leaves a "[process exited with
+code 0]" tab to close by hand. Like the font, it applies once WT has loaded the fragment.
 
 An existing target is rewritten only when this script wrote it (its marker is the second line), left alone when
 identical, and otherwise refused unless named by --replace (case-blind, like the desktop); a refusal, a target that
@@ -125,6 +130,7 @@ def _command(distro: str, repo: str, *extra: str) -> str:
             "bash",
             "-l",
             AGENTS_UP,
+            "--tab",  # W-df2e24ed: never the silent no-terminal detach, whose exit 0 closes the tab
             *extra,
             f"/opt/{repo}",
         ]
@@ -143,6 +149,7 @@ def _fragment_block(repo: str, title: str, profile: str, command: str) -> list[s
                     "suppressApplicationTitle": True,
                     "font": {"size": FONT_SIZE},
                     "hidden": False,
+                    "closeOnExit": "never",
                 }
             ]
         },

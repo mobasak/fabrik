@@ -460,6 +460,8 @@ case "$1" in
     # tmux-newfail: another launch created the session first; tmux-deadfail: tmux itself failed, no session exists
     if [ -f "$HOME/tmux-newfail" ]; then : > "$HOME/tmux-has"; exit 1; fi
     [ -f "$HOME/tmux-deadfail" ] && exit 1
+    # tmux-badids: the session is made but its first pane's ids come back unreadable (a failure inside start_grid)
+    if [ -f "$HOME/tmux-badids" ]; then : > "$HOME/tmux-has"; echo "garbage"; exit 0; fi
     n=$(next); case "$*" in *" -P "*) echo "@$n %$n" ;; esac
     exit 0 ;;
   new-window)
@@ -1581,6 +1583,77 @@ def test_a_caller_with_no_terminal_detaches_and_says_so(tmp_path: Path) -> None:
     assert "no terminal on stdin/stdout" in out.stderr and "left detached" in out.stderr, out.stderr
     assert "tmux attach -t =fabrik-lib" in out.stderr, out.stderr
     assert not any(ln.startswith("attach") for ln in log), log
+
+
+STOPPED = "before attaching — the reason is above; this tab stays open"
+
+
+def test_tab_with_no_terminal_says_why_and_exits_nonzero(tmp_path: Path) -> None:
+    """W-df2e24ed: the .bat's form (`--tab`) with no terminal still builds the grid, but never exits 0 silently — a
+    Windows Terminal tab closes on exit 0, so the operator saw a vanished or black tab. It exits 1 with the reason."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    out = _run("--tab", str(repo), home=home)  # pipes for stdin and stdout
+    assert out.returncode == 1, out.stderr
+    log = _log(home)
+    assert any(ln.startswith("new-session -d -s fabrik-lib") for ln in log), log
+    assert not any(ln.startswith("attach") for ln in log), log
+    assert "--tab but no terminal on stdin/stdout" in out.stderr, out.stderr
+    assert "tmux attach -t =fabrik-lib" in out.stderr, out.stderr
+    assert f"stopped (exit 1) {STOPPED}" in out.stderr, out.stderr
+    # with a terminal the same form attaches, and prints no stopped line
+    up = _tmux_home(tmp_path / "tty", repo, has=True, owner=str(repo))
+    out = _run("--tab", str(repo), home=up, tty=True)
+    assert out.returncode == 0, out.stderr
+    assert _log(up)[-1] == "attach -t =fabrik-lib", _log(up)
+    assert STOPPED not in out.stderr, out.stderr
+
+
+def test_tab_failure_inside_start_grid_prints_why_and_clears_the_flag(tmp_path: Path) -> None:
+    """W-df2e24ed: start_grid's own cleanup (unset `@agents_up_building`) and the `--tab` stopped line share ONE exit
+    handler — a failure inside start_grid prints the line and keeps its code, and the building flag is still
+    cleared; without --tab the cleanup runs and no line is printed."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    for flags, line in ((["--tab"], True), ([], False)):
+        home = _tmux_home(tmp_path / f"bad{len(flags)}", repo, has=False, owner=None)
+        (home / "tmux-badids").write_text("", encoding="utf-8")
+        out = _run(*flags, str(repo), home=home, tty=True)
+        assert out.returncode == 1, out.stderr
+        assert "gave no window and pane id" in out.stderr, out.stderr
+        assert "set-option -t =fabrik-lib: -u @agents_up_building" in _log(home), _log(home)
+        assert (f"stopped (exit 1) {STOPPED}" in out.stderr) is line, out.stderr
+    dead = _tmux_home(tmp_path / "dead", repo, has=False, owner=None)
+    (dead / "tmux-deadfail").write_text("", encoding="utf-8")
+    out = _run("--tab", str(repo), home=dead, tty=True)
+    assert out.returncode == 1 and f"stopped (exit 1) {STOPPED}" in out.stderr, out.stderr
+
+
+def test_tab_refuses_the_no_attach_modes(tmp_path: Path) -> None:
+    """`--tab` asks for an attach, so it is a usage error beside --print, --detach and --pane-cmd (nothing built)."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    for other in ("--print", "--detach", "--pane-cmd"):
+        home = _tmux_home(tmp_path / other.strip("-"), repo, has=False, owner=None)
+        for argv in (("--tab", other), (other, "--tab")):
+            out = _run(*argv, str(repo), home=home)
+            assert out.returncode == 2, (argv, out.stderr)
+            assert "--tab is the launcher's attach form" in out.stderr, (argv, out.stderr)
+        assert not (home / "tmux.log").exists() or not any(
+            ln.startswith("new-session") for ln in _log(home)
+        ), _log(home)
+
+
+def test_tab_window_says_it_is_waiting(tmp_path: Path) -> None:
+    """A `--tab --window n` tab whose grid is not up yet prints that it is waiting before its first sleep (else the
+    tab is black for up to FABRIK_AGENTS_WINDOW_WAIT_S), then the timeout reason and the stopped line."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    out = _run("--tab", "--window", "2", str(repo), home=home, FABRIK_AGENTS_WINDOW_WAIT_S="2")
+    assert out.returncode == 2, out.stderr
+    assert "waiting up to 2 s for the fabrik-lib grid to be built" in out.stderr, out.stderr
+    assert "was not ready within 2 s" in out.stderr, out.stderr
+    assert f"stopped (exit 2) {STOPPED}" in out.stderr, out.stderr
+    plain = _run("--window", "2", str(repo), home=home, FABRIK_AGENTS_WINDOW_WAIT_S="2")
+    assert plain.returncode == 2 and "waiting up to" not in plain.stderr, plain.stderr
 
 
 def test_an_up_grid_is_attached_not_rebuilt_and_the_owner_read_uses_the_option_target(

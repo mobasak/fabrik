@@ -446,8 +446,8 @@ python3 /opt/fabrik/scripts/sysadmin/agents_bat.py \
 ```
 
 `--tabbed` writes ONE `All Agents (tabbed).bat` instead (W-b9ad80ae D5): a named Windows Terminal window
-(`wt.exe -M -w fabrik-agents`) with, per repo, a first tab running `agents_up.sh /opt/<repo>` (attach-or-launch) and
-one tab per live window `agents-<k>` (k >= 2) running `agents_up.sh --window <k> /opt/<repo>`. A run with `--desktop`
+(`wt.exe -M -w fabrik-agents`) with, per repo, a first tab running `agents_up.sh --tab /opt/<repo>` (attach-or-launch)
+and one tab per live window `agents-<k>` (k >= 2) running `agents_up.sh --tab --window <k> /opt/<repo>`. A run with `--desktop`
 that wrote its file remembers the folder in `~/.config/fabrik/agents-desktop`; a `--tabbed` run without `--desktop`
 writes there (with nothing remembered it prints the text and says so, exit 0). Every regeneration holds
 `~/.config/fabrik/agents-desktop.lock` (one box-wide lock, 30 s at most) and writes through a unique temp file and a
@@ -476,8 +476,18 @@ Each .bat is self-contained and needs no hand-made Windows Terminal profile. `wt
 .bat writes a Windows Terminal JSON fragment, `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Fabrik\<repo>.json`,
 holding a profile named `<Repo> Agents grid` (its own name, so a hand-made `<Repo> Agents` profile cannot shadow it)
 at font size 9, and then starts `wt.exe -M -w new new-tab -p "<Repo> Agents grid" … wsl.exe --distribution <distro>
---exec bash -l /opt/fabrik/scripts/sysadmin/agents_up.sh /opt/<repo>`. The command line is given in full, so the grid
-opens even before Windows Terminal has loaded the fragment, at the default font. The fragment loads when Windows
+--exec bash -l /opt/fabrik/scripts/sysadmin/agents_up.sh --tab /opt/<repo>`. The command line is given in full, so the
+grid opens even before Windows Terminal has loaded the fragment, at the default font.
+
+**A tab never vanishes or stays black without a reason (W-df2e24ed).** `--tab` is the launcher's form: where a plain
+`agents_up.sh` with no terminal on stdin/stdout detaches and exits 0 (right for a coordinator's Bash tool, but Windows
+Terminal closes a tab whose command exits 0), `--tab` exits 1 and says so; any non-zero exit before the attach adds
+`agents_up: stopped (exit <n>) before attaching — the reason is above; this tab stays open`; a `--window` tab waiting
+for its grid says it is waiting. The fragment profile sets `"closeOnExit": "never"`, so a `wsl.exe` that fails before
+WSL starts (a `UtilAcceptVsock … accept4 failed 110` on a degraded Windows-WSL link, W-37b51748) stays readable too.
+The cost: a clean tmux detach (`C-b d`) leaves a `[process exited with code 0]` tab to close by hand. Like the font,
+`closeOnExit` applies once Windows Terminal has loaded the fragment. After this change, regenerate the desktop file
+once: `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed` (it writes to the remembered desktop). The fragment loads when Windows
 Terminal starts, and every Windows Terminal window shares one process, so 9pt applies once every Windows Terminal
 window has been closed after the first run. Nobody edits `settings.json`; Windows Terminal itself adds a
 `"source": "Fabrik"` stub there for the fragment's profile, as it did for WSL's own. The launcher runs what the hub's

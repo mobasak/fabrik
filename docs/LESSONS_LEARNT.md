@@ -8252,3 +8252,7 @@ when the edit runs.
 `command_rules.losses()` plus `tests/test_command_rules.py` there. Every LOSS is either reworded around a ban span
 that survives, or re-cut under one named D-row. A D-row cite in command text also adds a ceiling READ
 (`commands/_size_ceiling.json` `added:`).
+
+## A script that installs an EXIT trap owns the only one — compose, never add a second (2026-10-31, W-df2e24ed)
+
+bash keeps ONE EXIT trap: a flag-scoped `trap … EXIT` set at parse time is silently replaced by any function's own trap and removed by its `trap - EXIT`, exactly on the failure paths it was meant to report (agents_up.sh start_grid :1055/:1108). Make one handler and let callers flip state variables. And `script -qfec` as a fake pty is not free: with stdin at EOF it forwards ^D into the attached pane and pins the client at 80x24 — both critique seats executed it before any code existed.

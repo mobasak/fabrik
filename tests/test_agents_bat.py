@@ -104,7 +104,7 @@ def test_print_mode_writes_nothing(tmp_path: Path) -> None:
     before = sorted(p for p in tmp_path.rglob("*"))
     out = _run("--opt", str(opt))
     assert out.returncode == 0, out.stderr
-    assert "Fabrik-lib Agents.bat" in out.stdout and "agents_up.sh /opt/fabrik-lib" in out.stdout, (
+    assert "Fabrik-lib Agents.bat" in out.stdout and "agents_up.sh --tab /opt/fabrik-lib" in out.stdout, (
         out.stdout
     )
     assert sorted(p for p in tmp_path.rglob("*")) == before
@@ -158,6 +158,7 @@ def test_the_bat_text(tmp_path: Path) -> None:
         "bash",
         "-l",
         "/opt/fabrik/scripts/sysadmin/agents_up.sh",
+        "--tab",
         "/opt/fabrik-lib",
     ], launch[0]
     assert ' -M -w new new-tab -p "Fabrik-lib Agents grid"' in launch[0], launch[0]
@@ -181,8 +182,30 @@ def test_the_fragment_is_valid_json(tmp_path: Path) -> None:
     assert profile["font"] == {"size": 9}
     assert profile.get("hidden", False) is False
     assert profile["commandline"] == (
-        "wsl.exe --distribution Ubuntu-24.04 --exec bash -l /opt/fabrik/scripts/sysadmin/agents_up.sh /opt/fabrik-lib"
+        "wsl.exe --distribution Ubuntu-24.04 --exec bash -l /opt/fabrik/scripts/sysadmin/agents_up.sh --tab /opt/fabrik-lib"
     )
+    # W-df2e24ed: a tab whose command fails stays open, so its reason (a wsl.exe vsock error included) is readable
+    assert profile["closeOnExit"] == "never"
+
+
+def test_every_tab_command_passes_tab_and_the_profile_never_closes(tmp_path: Path) -> None:
+    """W-df2e24ed: every tab the tabbed .bat opens (each repo's first tab and every `--window n` tab) runs
+    `agents_up.sh --tab`, never the bare launcher whose no-terminal branch exits 0 and lets the tab vanish, and every
+    fragment profile keeps a failed tab open."""
+    opt = _opt(tmp_path, "aaa", "bbb")
+    desk = tmp_path / "desk"
+    desk.mkdir()
+    tm = _fake_tmux(tmp_path, aaa="agents\nagents-2\n", bbb="agents\n")
+    out = _run("--opt", str(opt), "--desktop", str(desk), "--tabbed", **tm)
+    assert out.returncode == 0, out.stderr
+    text = _bat(desk, TABBED)
+    tabs = _tabbed_tabs(text)
+    assert len(tabs) == 3, tabs
+    for tab in tabs:
+        words = tab.split(" wsl.exe ", 1)[1].split(" ")
+        assert words[words.index(AGENTS_UP) + 1] == "--tab", tab
+    frags = re.findall(r'"closeOnExit": "([^"]*)"', text)
+    assert frags == ["never", "never"], frags
 
 
 def test_existing_files(tmp_path: Path) -> None:
@@ -415,7 +438,7 @@ def test_tabbed_one_tab_per_window(tmp_path: Path) -> None:
     lines = text.split("\r\n")
     assert lines[0] == "@echo off" and lines[1] == MARK_LINE
     tabs = _tabbed_tabs(text)
-    tail = "wsl.exe --distribution Ubuntu-24.04 --exec bash -l " + AGENTS_UP
+    tail = "wsl.exe --distribution Ubuntu-24.04 --exec bash -l " + AGENTS_UP + " --tab"
     assert len(tabs) == 3, tabs
     assert tabs[0].endswith(f"{tail} /opt/aaa") and '--title "Aaa Agents"' in tabs[0], tabs[0]
     assert tabs[1].startswith("new-tab ") and tabs[1].endswith(f"{tail} --window 2 /opt/aaa"), tabs[
@@ -972,7 +995,7 @@ def test_a_down_grid_keeps_the_overflow_tabs_its_panes_imply(tmp_path: Path) -> 
     tm = _fake_tmux(tmp_path, bbb="agents\nagents-2\n", ccc="agents\nagents-4\n")
     out = _run("--opt", str(opt), "--desktop", str(desk), "--tabbed", up=str(up), **tm)
     assert out.returncode == 0, out.stderr
-    tail = "wsl.exe --distribution Ubuntu-24.04 --exec bash -l " + AGENTS_UP
+    tail = "wsl.exe --distribution Ubuntu-24.04 --exec bash -l " + AGENTS_UP + " --tab"
     tabs = [t.rsplit(tail, 1)[1].strip() for t in _tabbed_tabs(_bat(desk, TABBED))]
     assert tabs == [
         "/opt/aaa",
