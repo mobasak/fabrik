@@ -310,8 +310,10 @@ account from its own payload, so an account still reporting a 5h window keeps to
 entry). The marker travels: the cache row keeps it; `active.windows.five_hour.retired` and, when a retired
 account is the strictly coolest provider, `fleet.windows.five_hour.retired` carry it (a real reading wins a
 tie); `_row_utils` reads it as no reading, so it is never heat or relief evidence; the tick's ledger row writes
-`"session": "retired"` instead of a `pct` sample. Renderers print `5h retired` for the whole clause — the
-`QUOTA:` line, `posture:`, the `--status` account cells, the :5051 Accounts meter and Overview line. Fail
+`"session": "retired"` instead of a `pct` sample. Renderers print it as retired instead of a percentage — `5h retired` on the
+`QUOTA:` line (and `5h retired <slug>` in its fleet parenthesis) and `posture:`, `session retired` in the `--status`
+account cells, a `retired` badge on the :5051 Accounts meter and `5 h: retired (<slug>)` on Overview; the deny text
+and the board never name it as the binding or coolest window. Fail
 direction: a payload that hides a still-enforced 5h limit while keeping both signals reads as retired; the hit
 wall then surfaces as the CLI's usage-limit error. Revert: delete the predicate AND each retired account's row
 from `fleet-usage-cache.json`.
