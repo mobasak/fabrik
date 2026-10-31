@@ -5,7 +5,7 @@
   "created": "2026-10-17T09:07:02.979270Z",
   "creator": "fleet",
   "effort": "high",
-  "evidence": "",
+  "evidence": "a3955e7b20958c76f2272dc7576816a7d310bcb9",
   "id": "W-05004b41",
   "impact": "high",
   "kind": "task",
@@ -19,7 +19,8 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
+  "resolved_by": "W-2ae286e2",
   "score_reason": "D-958 re-score 2026-10-18: HIGH — deployed secrets silently truncated; needs spec chain",
-  "status": "open",
+  "status": "done",
   "title": "deployer_ssh._format_env never escapes $, and compose interpolates env_file values: a deployed value containing $ (bcrypt hash, user password) reaches the container substituted or truncated, silently (a$b -> a, compose 2.40.3; found by both W-9ead34bd design critiques)"
 }
