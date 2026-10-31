@@ -103,6 +103,12 @@ def test_stem_key_matches_a_whole_word_only():
         "tests/test_merge_request_pretest.py",
         "tests/test_third.py",
     ]
+    # a tree grader runs for any change, but its importers do not ride along (+143 s per merge measured)
+    graders = {
+        "tests/test_tree.py": "git ls-files",
+        "tests/test_uses_tree.py": "from test_tree import helper",
+    }
+    assert mts.select(["scripts/merge_request.py"], graders) == ["tests/test_tree.py"]
     # a stem with a regex metacharacter is matched literally
     assert mts.select(
         ["docs/a+b-notes.md"], {"tests/test_m.py": "a+b-notes", "tests/test_n.py": "aab-notes"}

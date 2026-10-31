@@ -228,15 +228,16 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
             if stem:
                 mods.add(stem)
     bounded = re.compile("|".join(sorted(mods))) if mods else None
+    graders: set[str] = set()
     if keys:
         for name, text in tests.items():
-            if (
-                TREE_GRADER in text
-                or any(k in text for k in keys)
-                or (bounded is not None and bounded.search(text))
-            ):
+            if any(k in text for k in keys) or (bounded is not None and bounded.search(text)):
                 picked.add(name)
-    return sorted(_with_test_importers(picked, tests))
+            elif TREE_GRADER in text:
+                graders.add(name)
+    # importers are followed from the tests that name the change only: a tree grader is picked for any
+    # change, so following its importers added 19 files and +143 s serial per merge (60 merges measured)
+    return sorted(_with_test_importers(picked, tests) | graders)
 
 
 def _with_test_importers(picked: set[str], tests: dict[str, str]) -> set[str]:
