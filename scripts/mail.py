@@ -8,7 +8,8 @@ One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,arch
 
     send  --to <repo> --kind <k> [--ack required|no] [--re <id>] [--from <repo>] [--auto]
           [--to-agent <role>] [--broadcast] < body
-          (hub-bound sends REQUIRE --to-agent coordinator|infra|fleet|intel|kaizen (or <beat>-<N>), --broadcast, or a
+          (hub-bound sends REQUIRE --to-agent coordinator|infra|fleet|intel|kaizen (or <beat>-<N>, or a spawned
+          <chartered role>-<name> builder), --broadcast, or a
           kind=reply thread — the addressing guard; see the refusal text)
     list  [--repo <repo>] [--agent <role>]
     read  <id> [--repo <repo>]
@@ -547,8 +548,8 @@ def _frontmatter(
 # guards key on membership here. Project mailboxes keep free-form roles (_safe_agent is
 # shape-only). Adding a future beat = extend this tuple (plus the charter file).
 HUB_BEATS = ("coordinator", "infra", "fleet", "intel", "kaizen")
-# A hub AGENT is a beat or a numbered builder of one, `<beat>-<N>` (D-1128: coordinators create builders on
-# demand — infra-2, infra-3). Agent names address mail and replies; the ownership map's tokens stay BEATS, so mail
+# A hub AGENT is a beat, a numbered builder of one, `<beat>-<N>` (D-1128: coordinators create builders on
+# demand — infra-2, infra-3), or a builder spawned under a chartered non-beat role (`_spawned_builder` below). Agent names address mail and replies; the ownership map's tokens stay BEATS, so mail
 # a map routes goes to the beat and a reply goes to the requester's own name (W-fa004224).
 _HUB_AGENT_RE = _re.compile(rf"(?:{'|'.join(HUB_BEATS)})(?:-[1-9][0-9]{{0,2}})?")
 
@@ -3095,7 +3096,8 @@ def main(argv: list[str] | None = None) -> int:
     p_send.add_argument(
         "--to-agent",
         dest="to_agent",
-        help="intra-mailbox addressee ROLE (coordinator/infra/fleet/intel/kaizen, or a numbered builder <beat>-<N>) — a filter, "
+        help="intra-mailbox addressee ROLE (coordinator/infra/fleet/intel/kaizen, a numbered builder <beat>-<N>, or a spawned "
+        "<chartered role>-<name> builder) — a filter, "
         "never a lock; "
         "`map` addresses a hub send to the ownership map's owner of its cited paths",
     )
@@ -3155,7 +3157,8 @@ def main(argv: list[str] | None = None) -> int:
         "--to-agent",
         dest="to_agent",
         default="",
-        help="role (coordinator/infra/fleet/intel/kaizen, or <beat>-<N>); omit or pass '' to CLEAR the addressee",
+        help="role (coordinator/infra/fleet/intel/kaizen, <beat>-<N>, or a spawned <chartered role>-<name> "
+        "builder); omit or pass '' to CLEAR the addressee",
     )
     p_route.add_argument("--repo")
     p_route.add_argument(

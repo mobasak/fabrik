@@ -104,3 +104,39 @@ def test_a_reply_reaches_the_spawned_builder_that_asked(tmp_path, monkeypatch):
     monkeypatch.setattr(mail, "_caller_agent", lambda: "coordinator")
     reply = mail.send(to="fabrik", kind="reply", body="merged", frm="fabrik", re=parent.stem)
     assert _agent(reply) == "builder-tmpfix"
+
+
+def test_any_chartered_role_counts_and_the_name_grammar_has_its_32_char_edge(tmp_path, monkeypatch):
+    """Review round 1: a second role (not only `builder`) and agents_spawn.py NAME_RE's length edge."""
+    _env(tmp_path, monkeypatch, {"builder": f"{MARKER} — builder", "scribe": f"{MARKER} — scribe"})
+    assert mail.is_hub_agent("scribe-a1")
+    assert mail.is_hub_agent("builder-" + "x" * 24)  # 32 chars, the grammar's longest
+    assert not mail.is_hub_agent("builder-" + "x" * 25)  # 33 chars
+    assert not mail.is_hub_agent("clerk-a1")  # no clerk charter
+
+
+def test_the_self_guard_and_the_rate_bucket_attribute_a_spawned_builder(tmp_path, monkeypatch):
+    """Review round 1: `_fm_agent` trusts a spawned builder's from-agent, so the self-guard lets another
+    agent auto-reply to it, and the rate count puts its mail in its own bucket."""
+    _env(tmp_path, monkeypatch, {"builder": f"{MARKER} — builder"})
+    monkeypatch.setattr(mail, "_caller_agent", lambda: "builder-tmpfix")
+    parent = mail.send(to="fabrik", kind="request", body="q", frm="fabrik", to_agent="coordinator")
+    fm = mail._parse(parent.read_text(encoding="utf-8"))
+    assert mail._fm_agent(fm) == "builder-tmpfix"
+    ok, reason = mail.should_auto_reply(fm, "fabrik", self_agent="coordinator")
+    assert ok, reason
+    now = mail._ts_epoch(fm["ts"]) + 1
+    assert mail._recent_from_count("fabrik", "fabrik", 3600, now, agent="builder-tmpfix") == 1
+    assert mail._recent_from_count("fabrik", "fabrik", 3600, now, agent="infra") == 0
+
+
+def test_a_reply_inherits_a_spawned_builders_address(tmp_path, monkeypatch):
+    """Review round 1: the second reply branch — a parent addressed to the builder with no from-agent."""
+    _env(tmp_path, monkeypatch, {"builder": f"{MARKER} — builder"})
+    monkeypatch.setattr(mail, "_caller_agent", lambda: "")
+    parent = mail.send(
+        to="fabrik", kind="finding", body="f", frm="fabrik", to_agent="builder-tmpfix"
+    )
+    monkeypatch.setattr(mail, "_caller_agent", lambda: "coordinator")
+    reply = mail.send(to="fabrik", kind="reply", body="a", frm="fabrik", re=parent.stem)
+    assert _agent(reply) == "builder-tmpfix"
