@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A rule added to a seat definition is charged to every command that names the seat (2026-10-31, mail 01M65ZP80Q)
+
+**What happened:** kaizen added the D-935 `capped_run.sh` rule for review seats to the probe catalogue (175 words) and to the fabrik-reviewer House rules (123 words). The corpus check then exited 5: six commands broke their L1 word ceiling, `/fabrik-task` among them, though its own text was never touched. The ceiling counts every file under `commands/` that a command names, plus the definition of every seat it names, and several commands had almost no headroom. The catalogue rule was cut to a pointer and the agent clause to ~90 words, which left four commands over, so their ceilings were raised by hand under D-1399. Separately, the design critique showed that a rule telling seats to prefix `capped_run.sh` would have hidden every prefixed command from `seat_guard.py`, which unwraps only the wrappers it knows by name.
+
+**Lesson:** before adding text to a seat definition or a shared fragment, run `assemble_commands.py --check` once on a scratch edit to see which commands it charges, and put the rule once, where every reader already loads it, with pointers elsewhere. A rule that tells agents to put a new launcher in front of their commands checks first that every guard keyed on argv unwraps that launcher.
+
 ## A mechanism and the command that triggers it can each pass review while the pair never fires (2026-10-30, W-6e656dac T06)
 
 **What happened:** T06 built the T-3 hard hold, armed only for a mark with a deadline, and passed its own gates. The `/hibernate` command text, owned by an earlier ticket, still ran `mark` with no `--deadline`. So the hold the plan exists for would never have armed in real use. Neither per-ticket review saw it, because each looked at one half. The whole-plan review's Fable seat found it from the other side ("a no-deadline pause never arms"), and following that seam led to the command text. The same review found the T-3 arm failing open on a dead */5 tick, and seven launchers proceeding on a corrupt marker that `woke` and `status` refused. Three passes: 15 → 2 → 0 confirmed.
