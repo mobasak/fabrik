@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:04:06.304875Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-abbc9435",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M676645CAMCM2QB3VCVAP9DE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: urgent request to hub fleet: deploy the bhdtrade quote-forms relay (services/quote-forms in web-ecommerce-factory) to vps1 now: your open item W-f0bdb498 (fabrik apply after Gate 2). Without it every bhdtrade.com contact/quote form fails ('Your request could not be sent'). wef2 is creating the"
+}
