@@ -373,6 +373,10 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     # The generated-output state of scripts/commit_generated.py (W-5568be8d): every daily() a grader
     # drives commits through it, and a write there would land in the operator's real ~/.claude/state.
     monkeypatch.setenv("FABRIK_GENERATED_STATE", str(tmp_path / "generated-output.json"))
+    # The merge tripwire (W-622ec42c) runs in the same daily() pass and WRITES beside the repo's merge
+    # records (`.git/fabrik-merge/tripwire*`) and can mail: without this a grader's daily() wrote the
+    # live hub's coordinator line. A missing repo is the tripwire's fail-open path.
+    monkeypatch.setenv("MERGE_TRIPWIRE_REPO", str(tmp_path / "no-git-repo"))
     # The harness scratch root (scratch lifecycle plan, Phase A): `start` mints a run folder under
     # `<root>/<slug>/<sid>/scratchpad/` and the sweep removes consumed ones — never the live
     # /tmp/claude-<uid>. The hub module `start` loads for that is the tree under test, not /opt/fabrik.

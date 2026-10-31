@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the merge program's daily tripwire: merge wall time, refusal classes, red-master before/after the valve (2026-10-31)
+`scripts/sysadmin/merge_tripwire.py` reads the hub's merge records (`.git/fabrik-merge/*.json`) once a day from the
+kaizen collector's daily pass: wall time per merged request (request ULID to reply), every refusal event by class
+(retried ones included) for the day and 14 days, and `waste_red_master_rework` pooled before and after the post-merge
+valve. A rise sustained for 7 days past 2 sigma mails the coordinator once per episode that the threshold goes back to
+40 (D-1384). The coordinator's prompt block shows its one line, or `STALE` when the collector stopped
+(W-622ec42c, D-1390). The collector's tests no longer reach the live repo's merge records (`tests/conftest.py`).
+
 ### Added — every new agent grid refreshes "All Agents (tabbed).bat" itself; the tmux how-to (2026-10-30)
 `scripts/sysadmin/agents_up.sh` now starts `agents_bat.py --tabbed` in the background after every grid it builds
 (interactive, `--detach` boot sweep, `add` cold start), when a desktop is remembered. Refreshes are coalesced (one runs,
