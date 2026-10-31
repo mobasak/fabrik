@@ -43,8 +43,8 @@ receipt.
 | I2 | spec I12, fabrik-lib's own contract (OUT-OF-SCOPE there) | IN as a mail only | Phase C step 3 |
 | I3 | *"Intel's lock release is on master as of 16b8494b8 … merge master into your worktree first"* (coordinator, 2026-10-22) | IN | Phase A step 0 |
 | I4 | *"the hook regex and its printed list are an infra ticket inside the plan, mailed with the exact diff"* (coordinator routing) | IN | Phase B |
-
 | I5 | spec § Amendment 1 (I13–I30), W-92389a31: *"design amendment to spec D1 … before Phase B consumes the labels"* (item `next` field) | IN | Phase A2 |
+
 
 Intake: 5 items — 5 IN, 0 OUT-OF-SCOPE, 0 ASK.
 
