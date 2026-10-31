@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:41:06.916592Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-1ebba5fc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M692ZZD54ZXPMYDAVJ2GC4PF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "W-fbd1d4b9 (the 20-min hub merge of 2026-10-30): measured; the landing part is closed, one part is left"
+}

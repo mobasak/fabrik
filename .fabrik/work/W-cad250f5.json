@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:41:38.430601Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-cad250f5",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "mail-01m692zzd5"
+  ],
+  "title": "After-merge test leg takes 13-45 min under load, so a red is found up to ~45 min after its merge (infra mail 01M692ZZD5, measured 2026-10-31): narrow the leg's selection further or give it a dedicated slot"
+}
