@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T09:19:05.695519Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b9916ab1",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "edit both CLAUDE.md copies (test_governance_template_split keeps them identical), the charter and the tmux doc; full /fabrik-review; MR; the post-commit sync carries it to every repo",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 0,
+  "score_reason": "operator: fix the gap asap; rules wording is kaizen's beat; after its D-935 fix",
+  "status": "open",
+  "title": "Operator ruling D-1396 (2026-10-31): the common coordinator paragraph (templates/governance/CLAUDE.md + hub CLAUDE.md, byte-identical per D-888) gains four duties for every repo's coordinator: (1) its repo's tabs in All Agents (tabbed).bat — every grid/window it runs appears there; (2) decides when to dispatch a new tmux agent, launches it only through agents_up.sh (add) and writes its charter docs/reference/agents/<name>.md before its first item; (3) watches every builder pane continuously (the watcher of W-c814836f) and interacts: typed briefs, answered prompts, rotations; (4) knows every builder's NOW/DONE/NEXT at all times, rebuilt from records (hub D-880, scripts/agent_status.py, already synced) — move that from the hub charter into the common paragraph. Also docs/reference/agents/coordinator.md and docs/reference/tmux-agents.md § Coordinator. Sync path: full /fabrik-review"
+}
