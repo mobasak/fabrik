@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:45:00.131708Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c16c6b80",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68ZFBV5HZ6M5NK0QQDKMEZH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "compact infra — W-fbd1d4b9 part c review closing (box-wide merge-leg admission, branch infra-merge-admission)"
+}

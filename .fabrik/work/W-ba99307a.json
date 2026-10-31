@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:44:45.335526Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-ba99307a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6910H8FH3ZTYH99CWNM22Q6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "fleet: Gate 2 for bhdtrade quote-forms relay (wef urgent mail 01M676645C) — yours to board"
+}

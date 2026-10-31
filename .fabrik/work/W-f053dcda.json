@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:44:58.896050Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-f053dcda",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68Y3S1TNGGWFMT4AFR3EWSW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "heads-up — W-fbd1d4b9 part c will move the merge queue wrapper to capped_run 12000 / rund 12100 when it lands"
+}

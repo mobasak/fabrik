@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:45:02.431398Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-820146e7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M690D3K9GBKEKYRR0CD8P4X4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "rotate infra — W-fbd1d4b9 part c merge request 01M690CRZB sent (box-wide merge-leg admission); item finished"
+}
