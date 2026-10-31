@@ -2,6 +2,7 @@
 
 Status: IN-PROGRESS
 Profile: small
+Whole-plan review: docs/development/reviews/2026-10-31-plan-1-ledger-merge-driver-review.md (CONVERGED, rounds 14 → 3 → 2 → 1 → 0)
 **Owner:** infra-2
 **Spec:** `docs/superpowers/specs/2026-10-30-ledger-merge-driver-design.md` (CONVERGED, D-1386; review receipt `docs/development/reviews/2026-10-30-ledger-merge-driver-spec-review.md`). The spec cites code at `51716046f`. This plan cites it at `b938c583e`, after master was merged in. The resolver functions are byte-identical between the two; only their line numbers moved (§ Evidence E2).
 **Base:** `b938c583e` (branch `w-53360407-entry-files`). Code files: `scripts/merge_request.py`, `scripts/install_post_commit_hook.sh`, `.gitattributes`. New test: `tests/test_merge_ledger_driver.py`; extended test: `tests/test_workitem_merge_driver.py` (the installer's driver tests, panel concern). Docs: `docs/reference/multi-agent-operating-model.md`, `docs/workstation/hooks-index.md`, `CHANGELOG.md`, `docs/LESSONS_LEARNT.md`, `INDEX.md`.
@@ -120,7 +121,7 @@ Appetite: 30
 - The installer registers `merge.ledger.*` and mirrors the ledger lines into `info/attributes` without orphaning the work-item block.
 - A nested `sub/CHANGELOG.md` gets no `merge=ledger`.
 
-## Phase C — Finish
+## Phase C — Finish — ✅ EXECUTED 2026-10-31 (ca4c9bb4c)
 
 Appetite: 45
 

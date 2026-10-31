@@ -11,10 +11,12 @@
   ],
   "branch": "w-53360407-entry-files",
   "started_at": "2026-10-31T11:55:00-03:00",
-  "status": "active",
+  "status": "released",
   "baseline_commit": "f65cc54181fb787ca7d77a2bd2ba9502f737d734",
   "shared_with": {
     "docs/workstation/hooks-index.md": "held by 2026-10-28-plan-1-dynamic-builders (infra-3); grant for the install_post_commit_hook.sh row requested (mail 01M68JG2CE)"
   },
-  "tickets": {}
+  "tickets": {},
+  "completed_at": "2026-10-31T13:14:25+03:00",
+  "final_commit": "ca4c9bb4caf449856e21f3300c2ba0d37434e7a3"
 }
