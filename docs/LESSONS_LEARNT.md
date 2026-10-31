@@ -5,7 +5,7 @@
 
 **What happened:** the parked design for D-1396 named `python3 scripts/agent_status.py` and `builder.md` for every coordinator, because MEASURE found the script in one project besides the hub. Both critique seats ran `find /opt`: the script is in 3 of 51 repos and not in the sync manifest, `builder.md` only in the hub, and `add` refuses in every project without a role charter. As written, the sentence would have been false in 48 repos the day the sync shipped it.
 
-**Lesson:** before a template sentence names a path or a command, list it across every `/opt` repo the sync reaches (`find /opt -path '/opt/*/<path>'`) and read whether `scripts/fabrik_synced_manifest.py` carries it; a hub tool is named hub-absolute with `--repo .`, which is the template's own pattern.
+**Lesson:** before a template sentence names a path or a command, list it across every `/opt` repo the sync reaches with `find /opt -mindepth <d> -maxdepth <d> -path '/opt/*/<path>' -not -path '*/worktrees/*'`, `<d>` the path's depth below `/opt` (3 for `scripts/<x>.py`), since an unbounded `-path` also matches every worktree and pin copy (989 in the hub alone), and read whether `scripts/fabrik_synced_manifest.py` carries it; a hub tool is named hub-absolute with `--repo .`, which is the template's own pattern.
 
 ## Measure a merge driver with real git, never a replica of it (2026-10-31, W-53360407)
 

@@ -13,7 +13,7 @@ coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**. This ch
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
 The duty and what NOW, DONE and NEXT mean are the coordinator paragraph's **Builders** sentence (D-1396). The hub adds: it covers
-every agent here, not only builders; the run record is `~/.claude/state/command-runs/`, stale by `updated_at`, read beside `ListAgents`;
+every agent here, not only builders, and an agent with no record, or a stale one, is asked; the run record is `~/.claude/state/command-runs/`, stale by `updated_at`, read beside `ListAgents`;
 the queued and claimed items are `work.py ready --all` and `work.py queue`, and DONE counts merges on master. Commit the store
 (`work.py commit-items`) on every change. One view: `python3 scripts/agent_status.py` (D-894).
 

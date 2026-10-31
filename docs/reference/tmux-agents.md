@@ -39,10 +39,12 @@ invisible to the launcher generator.
   the reason instead of detaching, so the Windows Terminal tab stays open and readable (W-df2e24ed).
 - `bash /opt/fabrik/scripts/sysadmin/agents_up.sh add <repo> <name>` spawns a builder.
 - **Dispatching a builder.** It is the coordinator's decision (D-1396). Before `add`, commit on the base branch the
-  builder's own charter `docs/reference/agents/<name>.md` (first line `# Agent charter`) and, where the repo has none,
-  the role charter `docs/reference/agents/<role>.md` that `add` refuses without: the builder's worktree is cut from
-  the base branch, so an uncommitted charter is never injected. The name reads `<role>-<n>` (`--role`, default
-  `builder`). Then check the new pane appears in the launcher.
+  builder's own charter `docs/reference/agents/<name>.md` (first line `# Agent charter`) and, where the role charter
+  `docs/reference/agents/<role>.md` is missing or lacks that first line, that one too: `add` refuses without it, and the
+  builder's worktree is cut from the base branch, so an uncommitted charter is never injected. An own file that lacks
+  that first line blocks the role fallback, so the builder gets no charter at all. The name reads `<role>-<n>`
+  (`--role`, default `builder`). Then check the launcher lists the window the builder landed in: it carries one tab per
+  repo and one per overflow window `agents-<n>`, never one per pane.
 
 Each of them keeps the desktop's `All Agents (tabbed).bat` current by itself (D-1376):
 
