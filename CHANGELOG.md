@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — an account whose plan dropped the 5-hour limit reads `5h retired`, not a stale percentage (2026-10-31)
+The usage payload of an account on the plan now named Ultra can drop its `five_hour` window (sarp's did on 2026-10-31; ob, ozgurbasak, can and mob still report one). Both payload parsers in `claude_rotate.py` failed the whole reading closed on it, so the tick served sarp from a 12-hour-old cache. A payload with `five_hour: null`, a `weekly_all` limit and no session limit now reads as a retired window (0.0 plus `retired: true`): bands come from weekly and Fable, the tick's ledger row writes `session: retired` instead of a fake 0% sample, and the `QUOTA:` line, `--status` and the :5051 dashboard print `5h retired`. Every other null shape still fails closed; an account still reporting a 5h window behaves as before (D-1400, D-1401, W-992979e1).
+
 ### Fixed — master's pre-existing reds, batch 2: three tests coupled to their checkout, date or path (2026-10-31)
 `tests/test_install_pre_push_hook.py` takes the running venv's pre-commit (a merge worktree has no `.venv`), `tests/test_spend_calendar_months.py`'s two calendar tests no longer fail on the 31st or on the 1st and 2nd, and `tests/test_agents_up.py` checks both streams for the foreign name as a word, not a substring of the path (D-1393, W-a9b3bc15).
 
